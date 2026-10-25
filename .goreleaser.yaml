@@ -1,0 +1,78 @@
+version: 2
+
+project_name: secret-wan
+
+builds:
+  - id: secret-wan
+    main: .
+    binary: secwan
+    env:
+      - CGO_ENABLED=0 # Wajib 0 agar binary static dan kecil
+    goos:
+      - linux
+      - darwin # macOS
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w # Strip debug info & symbol table (mengecilkan size)
+      - -X main.version={{.Version}} # Opsional: inject versi ke variable main
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    flags:
+      - -trimpath # Hapus path lokal dari binary (keamanan & reproducible build)
+
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip # Windows pakai zip, Linux/Mac pakai tar.gz
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - 'merge conflict'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: '🚀 Features'
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: '🐛 Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: '🔧 Enhancements'
+      regexp: '^.*?refactor(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: '📦 Dependencies'
+      regexp: '^.*?deps(\([[:word:]]+\))??!?:.+$'
+      order: 3
+    - title: 'Other Work'
+      order: 999
+
+release:
+  github:
+    owner: ikhwan-satrio # GANTI DENGAN USERNAME GITHUB ANDA
+    name: secret-wan     # GANTI DENGAN NAMA REPO ANDA
+  draft: false
+  prerelease: auto
+  name_template: "🚀 {{.ProjectName}} v{{.Version}}"
