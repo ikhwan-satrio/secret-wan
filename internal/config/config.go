@@ -1,9 +1,9 @@
 package config
 
 import (
-	"fmt"
 	"log"
-	"os"
+
+	"github.com/ikhwan-satrio/secret-wan/internal/osutil"
 )
 
 type AppConfig struct {
@@ -15,18 +15,15 @@ type AppConfig struct {
 }
 
 func UseApp() AppConfig {
-	home, err := os.UserHomeDir()
-
+	configPath, err := osutil.ConfigPath("secret-wan", "keys.txt")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	config := fmt.Sprintf("%s/.config/secret-wan/keys.txt", home)
-
 	return AppConfig{
 		SpecFile:        "secret-wan.toml",
 		EncFile:         "env.enc",
-		GlobalMasterKey: config,
+		GlobalMasterKey: configPath,
 		AppName:         "secret-wan",
 		SecretLength:    100,
 	}

@@ -1,4 +1,4 @@
-package utils
+package secrets
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ikhwan-satrio/secret-wan/config"
+	"github.com/ikhwan-satrio/secret-wan/internal/config"
 	"golang.org/x/term"
 )
 
@@ -26,7 +26,7 @@ func (s *SecretModule) GenerateSecureSecret() (string, error) {
 
 func (s *SecretModule) PromptUserInput(key string, isSecret bool) (string, error) {
 	if isSecret {
-		fmt.Printf("Masukkan value untuk %s (input tersembunyi): ", key)
+		fmt.Printf("Enter value for %s (hidden input): ", key)
 		// Gunakan term.ReadPassword agar karakter tidak muncul di layar
 		bytePassword, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println() // Print newline karena ReadPassword tidak melakukannya
@@ -36,7 +36,7 @@ func (s *SecretModule) PromptUserInput(key string, isSecret bool) (string, error
 		return string(bytePassword), nil
 	}
 
-	fmt.Printf("Masukkan value untuk %s: ", key)
+	fmt.Printf("Enter value for %s: ", key)
 	reader := bufio.NewReader(os.Stdin)
 	text, err := reader.ReadString('\n')
 	if err != nil {

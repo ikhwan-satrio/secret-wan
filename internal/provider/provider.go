@@ -1,10 +1,14 @@
-package utils
+package provider
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/99designs/keyring"
-	"github.com/ikhwan-satrio/secret-wan/config"
+	"github.com/ikhwan-satrio/secret-wan/internal/config"
+	"github.com/ikhwan-satrio/secret-wan/internal/osutil"
 )
 
 type StorageProvider interface {
@@ -25,8 +29,8 @@ func (p *DotfilesProvider) Load() ([]byte, error) {
 }
 
 type KeyringProvider struct {
-	ServiceName string // Nama aplikasi di keychain
-	Key         string // Key spesifik (misal: nama project)
+	ServiceName string
+	Key         string
 }
 
 func (p *KeyringProvider) Save(data []byte) error {
@@ -57,12 +61,36 @@ func (p *KeyringProvider) Load() ([]byte, error) {
 	return item.Data, nil
 }
 
+type DockerSecretProvider struct {
+	SecretName string
+}
+
+func (p *DockerSecretProvider) Save(data []byte) error {
+	return fmt.Errorf("saving to docker secret is not supported directly")
+}
+
+func (p *DockerSecretProvider) Load() ([]byte, error) {
+	filePath := filepath.Join(osutil.DockerSecretsDir(), p.SecretName)
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	cleaned := strings.TrimSpace(string(data))
+	return []byte(cleaned), nil
+}
+
 func GetStorageProvider(appConfig config.AppConfig, providerName string, projectName string) StorageProvider {
 	switch providerName {
 	case "keyring":
 		return &KeyringProvider{
 			ServiceName: "secret-wan",
 			Key:         projectName,
+		}
+	case "docker":
+		return &DockerSecretProvider{
+			SecretName: projectName,
 		}
 	default: // "dotfiles"
 		return &DotfilesProvider{

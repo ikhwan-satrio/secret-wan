@@ -1,19 +1,17 @@
-package cmd
+package manifest
 
 import (
 	"sort"
-
-	"github.com/ikhwan-satrio/secret-wan/utils"
 )
 
-func getProfileNames(profiles map[string]*utils.Profile) []string {
+func GetProfileNames(profiles map[string]*Profile) []string {
 	names := make([]string, 0, len(profiles))
 	for k := range profiles {
 		names = append(names, k)
 	}
-	
+
 	// Urutkan agar tampilannya rapi di terminal
 	sort.Strings(names)
-	
+
 	return names
 }

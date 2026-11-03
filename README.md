@@ -29,9 +29,12 @@
 ### Via Go Install
 ```bash
 go install github.com/ikhwan-satrio/secret-wan@latest
+```
 
 ### Via Pre-compiled Binaries
 Download the latest binary for your OS/Architecture from the [GitHub Releases](https://github.com/ikhwan-satrio/secret-wan/releases) page.
+
+Windows users can download either the `.zip` archive or the standalone `secwan-windows-amd64.exe` / `secwan-windows-arm64.exe` assets.
 
 *(Note for Linux users: If you plan to use the `keyring` provider, ensure you have `libsecret` and a Secret Service daemon like `gnome-keyring` or `keepassxc` installed).*
 
@@ -112,6 +115,23 @@ When you run `secwan init`, you will be asked to choose a provider:
 ---
 
 ## 🛠️ Development & Building
+
+### Project Structure
+
+```text
+.
+├── cmd/                  # Cobra command definitions
+├── internal/
+│   ├── config/           # Application configuration
+│   ├── crypto/           # age encryption and master key handling
+│   ├── manifest/         # TOML manifest parsing and template generation
+│   ├── osutil/           # OS-specific helpers
+│   ├── provider/         # Storage providers (dotfiles, keyring, Docker)
+│   ├── secrets/          # Secret generation and prompt helpers
+│   ├── tui/              # Bubble Tea screens
+│   └── ui/               # Shared terminal theme and formatting
+└── main.go               # CLI entrypoint
+```
 
 To build from source:
 

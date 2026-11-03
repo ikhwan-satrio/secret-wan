@@ -4,85 +4,93 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ikhwan-satrio/secret-wan/config"
-	"github.com/ikhwan-satrio/secret-wan/utils"
+	"github.com/ikhwan-satrio/secret-wan/internal/config"
+	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
+	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
+	"github.com/ikhwan-satrio/secret-wan/internal/provider"
+	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var checkCmd = &cobra.Command{
 	Use:   "check",
-	Short: "Memeriksa kelengkapan secret berdasarkan config",
+	Short: "Check secret completeness based on config",
 	Run: func(cmd *cobra.Command, args []string) {
 		profileName, err := cmd.Flags().GetString("profile")
 		if err != nil {
-			fmt.Println(FormatError("Failed to read profile flag", err.Error()))
+			fmt.Println(ui.FormatError("Failed to read profile flag", err.Error()))
 			os.Exit(1)
 		}
 
 		appConfig := config.UseApp()
-		cryptoModule := utils.CryptoModule{AppConfig: appConfig}
-		parserModule := utils.ParserModule{AppConfig: appConfig}
+		cryptoModule := crypto.CryptoModule{AppConfig: appConfig}
+		parserModule := manifest.ParserModule{AppConfig: appConfig}
 
 		identity, err := cryptoModule.LoadOrGenerateKey()
 		if err != nil {
-			fmt.Println(FormatError("Failed to load master key", err.Error()))
+			fmt.Println(ui.FormatError("Failed to load master key", err.Error()))
 			os.Exit(1)
 		}
 
-		manifest, err := parserModule.ParseManifest()
+		parsedManifest, err := parserModule.ParseManifest()
 		if err != nil {
-			fmt.Println(FormatError("Failed to load configuration", fmt.Sprintf("Invalid manifest declaration: %v", err)))
+			fmt.Println(ui.FormatError("Failed to load configuration", fmt.Sprintf("Invalid manifest declaration: %v", err)))
 			os.Exit(1)
 		}
 
-		targetProfile, exists := manifest.Profiles[profileName]
+		targetProfile, exists := parsedManifest.Profiles[profileName]
 		if !exists {
-			validProfiles := getProfileNames(manifest.Profiles)
-			errMsg := fmt.Sprintf("Profile '%s' tidak ditemukan. Profile yang tersedia: %v", profileName, validProfiles)
-			fmt.Println(FormatError("Invalid profile", errMsg))
+			validProfiles := manifest.GetProfileNames(parsedManifest.Profiles)
+			errMsg := fmt.Sprintf("Profile '%s' not found. Available profiles: %v", profileName, validProfiles)
+			fmt.Println(ui.FormatError("Invalid profile", errMsg))
 			os.Exit(1)
 		}
 
 		expectedSecrets := append(targetProfile.Required, targetProfile.AutoGen...)
 		if len(expectedSecrets) == 0 {
-			fmt.Println(FormatError("Failed to load configuration", fmt.Sprintf("Profile '%s' must define at least one secret", targetProfile.Name)))
+			fmt.Println(ui.FormatError("Failed to load configuration", fmt.Sprintf("Profile '%s' must define at least one secret", targetProfile.Name)))
 			os.Exit(1)
 		}
 
-		// Load menggunakan Storage Provider
-		provider := utils.GetStorageProvider(appConfig, manifest.Project.Provider, manifest.Project.Name)
-		actualSecrets, err := cryptoModule.LoadSecrets(provider, identity)
+		storage := provider.GetStorageProvider(appConfig, parsedManifest.Project.Provider, parsedManifest.Project.Name)
+		actualSecrets, err := cryptoModule.LoadSecrets(storage, identity)
 		if err != nil {
 			if os.IsNotExist(err) {
-				fmt.Println(FormatError("Failed to load secrets", fmt.Sprintf("Storage not found. Run 'secman sync -p %s' first.", profileName)))
+				fmt.Println(ui.FormatError("Failed to load secrets", fmt.Sprintf("Storage not found. Run 'secwan sync -p %s' first.", profileName)))
 			} else {
-				fmt.Println(FormatError("Failed to decrypt secrets", err.Error()))
+				fmt.Println(ui.FormatError("Failed to decrypt secrets", err.Error()))
 			}
 			os.Exit(1)
 		}
 
-		fmt.Println(StyleSuccess.Render(fmt.Sprintf("\n✓ Profile '%s' Status", targetProfile.Name)))
-		fmt.Println(StyleDim.Render("────────────────────────────────────────"))
+		fmt.Println(ui.Title.Render("secret-wan") + ui.Muted.Render("  •  check"))
+		fmt.Println(ui.Divider(44))
+		fmt.Println(ui.Muted.Render("Profile: ") + ui.Accent.Render(targetProfile.Name))
+		fmt.Println()
 
 		allPresent := true
 		for _, key := range expectedSecrets {
+			keyColumn := fmt.Sprintf("%-24s", key)
+
 			if val, exists := actualSecrets[key]; exists && val != "" {
-				fmt.Printf("  %s %-25s %s\n", IconSuccess, key, StyleDim.Render("(configured)"))
+				fmt.Printf("  %s %s %s\n", ui.IconSuccess, ui.Key.Render(keyColumn), ui.Muted.Render("configured"))
 			} else {
-				fmt.Printf("  %s %-25s %s\n", IconError, key, StyleError.Render("(missing)"))
+				fmt.Printf("  %s %s %s\n", ui.IconError, ui.Key.Render(keyColumn), ui.Error.Render("missing"))
 				allPresent = false
 			}
 		}
 
-		fmt.Println(StyleDim.Render("────────────────────────────────────────"))
+		fmt.Println()
+		fmt.Println(ui.Divider(44))
 
 		if allPresent {
-			fmt.Printf("\n%s %s\n", IconSuccess, StyleSuccess.Render("All secrets are properly configured!"))
-		} else {
-			fmt.Printf("\n%s %s\n", IconError, StyleError.Render("Some secrets are missing."))
-			fmt.Println(StyleDim.Render(fmt.Sprintf("Run 'secman sync -p %s' to configure them.", profileName)))
-			os.Exit(1)
+			fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render("All secrets are properly configured!"))
+			return
 		}
+
+		fmt.Printf("%s %s\n", ui.IconError, ui.Error.Render("Some secrets are missing."))
+		fmt.Println(ui.Muted.Render(fmt.Sprintf("Run 'secwan sync -p %s' to configure them.", profileName)))
+		os.Exit(1)
 	},
 }
 

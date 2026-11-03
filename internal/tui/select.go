@@ -21,34 +21,44 @@ func (m SelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "esc":
 			m.Cancel = true
 			return m, tea.Quit
 		case "up", "k":
-			if m.Cursor > 0 { m.Cursor-- }
+			if m.Cursor > 0 {
+				m.Cursor--
+			}
 		case "down", "j":
-			if m.Cursor < len(m.Choices)-1 { m.Cursor++ }
+			if m.Cursor < len(m.Choices)-1 {
+				m.Cursor++
+			}
 		case "enter":
 			m.Result = m.Choices[m.Cursor]
 			m.Chosen = true
 			return m, tea.Quit
 		}
 	}
+
 	return m, nil
 }
 
 func (m SelectModel) View() string {
-	s := strings.Builder{}
-	s.WriteString(StyleAccent.Render(m.Title) + "\n\n")
-	
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render(m.Title))
+	b.WriteString("\n\n")
+
 	for i, choice := range m.Choices {
 		if i == m.Cursor {
-			s.WriteString(StyleCursor.Render("❯ ") + StyleAccent.Render(choice) + "\n")
+			b.WriteString(cursorStyle.Render("❯ " + choice))
 		} else {
-			s.WriteString("  " + StyleDim.Render(choice) + "\n")
+			b.WriteString("  " + mutedStyle.Render(choice))
 		}
+		b.WriteString("\n")
 	}
-	
-	s.WriteString("\n" + StyleDim.Render("↑/↓ navigate • Enter select • ctrl+c quit"))
-	return s.String()
+
+	b.WriteString("\n")
+	b.WriteString(mutedStyle.Render("↑/↓ navigate  •  enter select  •  esc cancel"))
+
+	return boxStyle.Render(b.String()) + "\n"
 }

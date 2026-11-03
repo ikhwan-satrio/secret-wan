@@ -1,4 +1,4 @@
-package utils
+package manifest
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ikhwan-satrio/secret-wan/config"
+	"github.com/ikhwan-satrio/secret-wan/internal/config"
 )
 
 type tomlManifest struct {
@@ -44,13 +44,13 @@ type ParserModule struct {
 func (p *ParserModule) ParseManifest() (*Manifest, error) {
 	data, err := os.ReadFile(p.AppConfig.SpecFile)
 	if err != nil {
-		return nil, fmt.Errorf("gagal membaca file: %v", err)
+		return nil, fmt.Errorf("failed to read file: %v", err)
 	}
 
 	var raw tomlManifest
 	// Gunakan toml.Decode (mengembalikan MetaData dan error)
 	if _, err := toml.Decode(string(data), &raw); err != nil {
-		return nil, fmt.Errorf("format TOML tidak valid: %v", err)
+		return nil, fmt.Errorf("invalid TOML format: %v", err)
 	}
 
 	manifest := &Manifest{
@@ -60,7 +60,7 @@ func (p *ParserModule) ParseManifest() (*Manifest, error) {
 
 	for profName, profRules := range raw.Profiles {
 		profile := &Profile{Name: profName}
-		
+
 		for secretName, rule := range profRules {
 			if rule.Generate {
 				profile.AutoGen = append(profile.AutoGen, secretName)
@@ -69,14 +69,14 @@ func (p *ParserModule) ParseManifest() (*Manifest, error) {
 				profile.Required = append(profile.Required, secretName)
 			}
 		}
-		
+
 		sort.Strings(profile.AutoGen)
 		sort.Strings(profile.Required)
 		manifest.Profiles[profName] = profile
 	}
 
 	if len(manifest.Profiles) == 0 {
-		return nil, fmt.Errorf("tidak ada profile yang didefinisikan di dalam 'profiles'")
+		return nil, fmt.Errorf("no profiles defined inside 'profiles'")
 	}
 
 	return manifest, nil

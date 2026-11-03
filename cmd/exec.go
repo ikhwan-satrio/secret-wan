@@ -6,57 +6,58 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/ikhwan-satrio/secret-wan/config"
-	"github.com/ikhwan-satrio/secret-wan/utils"
+	"github.com/ikhwan-satrio/secret-wan/internal/config"
+	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
+	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
+	"github.com/ikhwan-satrio/secret-wan/internal/provider"
+	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var execCmd = &cobra.Command{
 	Use:   "exec [command] [args...]",
-	Short: "Jalankan perintah dengan secret profile tertentu yang di-inject ke environment",
+	Short: "Run a command with a specific secret profile injected into the environment",
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		profileName, err := cmd.Flags().GetString("profile")
 		if err != nil {
-			fmt.Println(FormatError("Failed to read profile flag", err.Error()))
+			fmt.Println(ui.FormatError("Failed to read profile flag", err.Error()))
 			os.Exit(1)
 		}
 
 		appConfig := config.UseApp()
-		cryptoModule := utils.CryptoModule{AppConfig: appConfig}
-		parserModule := utils.ParserModule{AppConfig: appConfig}
+		cryptoModule := crypto.CryptoModule{AppConfig: appConfig}
+		parserModule := manifest.ParserModule{AppConfig: appConfig}
 
 		identity, err := cryptoModule.LoadOrGenerateKey()
 		if err != nil {
-			fmt.Println(FormatError("Failed to load master key", err.Error()))
+			fmt.Println(ui.FormatError("Failed to load master key", err.Error()))
 			os.Exit(1)
 		}
 
-		manifest, err := parserModule.ParseManifest()
+		parsedManifest, err := parserModule.ParseManifest()
 		if err != nil {
-			fmt.Println(FormatError("Failed to parse manifest", err.Error()))
+			fmt.Println(ui.FormatError("Failed to parse manifest", err.Error()))
 			os.Exit(1)
 		}
 
-		targetProfile, exists := manifest.Profiles[profileName]
+		targetProfile, exists := parsedManifest.Profiles[profileName]
 		if !exists {
-			validProfiles := getProfileNames(manifest.Profiles)
-			errMsg := fmt.Sprintf("Profile '%s' tidak ditemukan. Profile yang tersedia: %v", profileName, validProfiles)
-			fmt.Println(FormatError("Invalid profile", errMsg))
+			validProfiles := manifest.GetProfileNames(parsedManifest.Profiles)
+			errMsg := fmt.Sprintf("Profile '%s' not found. Available profiles: %v", profileName, validProfiles)
+			fmt.Println(ui.FormatError("Invalid profile", errMsg))
 			os.Exit(1)
 		}
 
-		// PERBAIKAN: Dapatkan provider terlebih dahulu
-		provider := utils.GetStorageProvider(appConfig, manifest.Project.Provider, manifest.Project.Name)
-		
-		// PERBAIKAN: Panggil LoadSecrets dengan 2 argumen (provider, identity)
-		secrets, err := cryptoModule.LoadSecrets(provider, identity)
+		storage := provider.GetStorageProvider(appConfig, parsedManifest.Project.Provider, parsedManifest.Project.Name)
+
+		secrets, err := cryptoModule.LoadSecrets(storage, identity)
 		if err != nil {
 			if os.IsNotExist(err) {
-				fmt.Println(FormatError("Secrets storage not found",
-					fmt.Sprintf("Jalankan 'secman sync -p %s' terlebih dahulu.", profileName)))
+				fmt.Println(ui.FormatError("Secrets storage not found",
+					fmt.Sprintf("Run 'secwan sync -p %s' first.", profileName)))
 			} else {
-				fmt.Println(FormatError("Failed to decrypt secrets", err.Error()))
+				fmt.Println(ui.FormatError("Failed to decrypt secrets", err.Error()))
 			}
 			os.Exit(1)
 		}
@@ -82,8 +83,9 @@ var execCmd = &cobra.Command{
 
 		targetCmd := args[0]
 		cmdArgs := args[1:]
+		commandLine := strings.Join(append([]string{targetCmd}, cmdArgs...), " ")
 
-		fmt.Printf("%s %s\n\n", StyleDim.Render("Running:"), strings.Join(append([]string{targetCmd}, cmdArgs...), " "))
+		fmt.Printf("%s %s\n\n", ui.Muted.Render("Running:"), ui.Text.Render(commandLine))
 
 		c := exec.Command(targetCmd, cmdArgs...)
 		c.Stdin = os.Stdin
@@ -96,13 +98,13 @@ var execCmd = &cobra.Command{
 			if exitError, ok := err.(*exec.ExitError); ok {
 				os.Exit(exitError.ExitCode())
 			}
-			fmt.Println(FormatError("Failed to execute command", err.Error()))
+			fmt.Println(ui.FormatError("Failed to execute command", err.Error()))
 			os.Exit(1)
 		}
 	},
 }
 
 func init() {
-	execCmd.Flags().StringP("profile", "p", "default", "Profile environment yang ingin digunakan")
+	execCmd.Flags().StringP("profile", "p", "default", "Profile environment to use")
 	rootCmd.AddCommand(execCmd)
 }
