@@ -150,6 +150,31 @@ If you want to test the cross-compilation and release process locally:
 goreleaser release --snapshot --clean
 ```
 
+### Automated Releases
+
+Releases are automated with [Release Please](https://github.com/googleapis/release-please). Use [Conventional Commit](https://www.conventionalcommits.org/) messages so the changelog and semver bump are generated correctly:
+
+```text
+feat: add Windows support
+fix: handle empty manifest
+docs: update installation guide
+feat!: change config format
+```
+
+Flow:
+
+1. Merge a PR into `main` using a conventional commit title.
+2. Release Please opens or updates a release PR with the next version and `CHANGELOG.md` entry.
+3. Merge the release PR. Release Please creates the tag and GitHub Release.
+4. The release workflow builds all binaries and attaches them to the release, including `secwan-windows-amd64.exe` and `secwan-windows-arm64.exe`.
+
+You can also trigger a release manually by pushing a tag:
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
 ---
 
 ## 🧰 Tech Stack

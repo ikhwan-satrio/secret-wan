@@ -3,75 +3,13 @@ name: Release
 on:
   push:
     tags:
-      - 'v*' # Trigger when a new tag is pushed (v1.0.0, v1.2.3, etc.)
+      - 'v*' # Manual tag push (v1.0.0, v1.2.3, etc.)
 
 permissions:
-  contents: write # Required to create a GitHub Release and upload assets
+  contents: write
 
 jobs:
-  goreleaser:
-    name: GoReleaser
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Required for changelog generation
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  windows-exe:
-    name: Attach Windows .exe
-    needs: goreleaser
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Download existing checksums
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p dist
-          gh release download "${GITHUB_REF_NAME}" --pattern checksums.txt --dir dist
-
-      - name: Build Windows executables
-        env:
-          CGO_ENABLED: "0"
-        run: |
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/secwan-windows-amd64.exe .
-          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/secwan-windows-arm64.exe .
-
-      - name: Add .exe checksums
-        run: |
-          cd dist
-          sha256sum *.exe >> checksums.txt
-
-      - name: Upload .exe and checksums to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${GITHUB_REF_NAME}" \
-            dist/secwan-windows-amd64.exe \
-            dist/secwan-windows-arm64.exe \
-            dist/checksums.txt \
-            --clobber
+  release:
+    uses: ./.github/workflows/release-build.yaml
+    with:
+      tag: ${{ github.ref_name }}

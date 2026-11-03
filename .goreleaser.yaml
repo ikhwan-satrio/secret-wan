@@ -37,6 +37,7 @@ archives:
     files:
       - README.md
       - LICENSE
+      - CHANGELOG.md
 
 checksum:
   name_template: 'checksums.txt'
@@ -73,6 +74,9 @@ release:
   github:
     owner: ikhwan-satrio # GANTI DENGAN USERNAME GITHUB ANDA
     name: secret-wan     # GANTI DENGAN NAMA REPO ANDA
+  # Release Please already writes the changelog into the GitHub Release.
+  # Keep it as-is and only append the build artifacts.
+  mode: keep-existing
   draft: false
   prerelease: auto
   name_template: "🚀 {{.ProjectName}} v{{.Version}}"
