@@ -6,7 +6,7 @@
 
 Unit tests for the shared command helpers that contain the most subtle logic:
 profile key normalization, strict-check issue collection, environment-value
-quoting, and secret type classification.
+quoting, secret type classification, and recipient resolution.
 
 ## Responsibilities
 
@@ -17,6 +17,8 @@ quoting, and secret type classification.
 - Verify strict-check findings for empty profiles, missing rules, and unknown
   providers.
 - Verify the `list` command's secret type labels.
+- Verify recipient fallback, self-lockout prevention, and configured key
+  preservation.
 
 ## Tests
 
@@ -80,6 +82,24 @@ Checks the labels used by `list`:
 - `B`, declared only in `staging` → `other`
 - `Z`, not declared anywhere → `unmanaged`
 
+### `TestEncryptionRecipientsUsesCurrentKeyWhenNoFile`
+
+Builds a configuration with a recipients path in `t.TempDir()` and no file.
+Expects exactly one recipient, which is the current key. This protects the
+single-recipient fallback.
+
+### `TestEncryptionRecipientsRequiresCurrentKey`
+
+Creates a recipient file containing only another identity. Expects:
+
+- `allowSelfExclusion=false` → error;
+- `allowSelfExclusion=true` → success with one recipient.
+
+### `TestEncryptionRecipientsKeepsConfiguredKeys`
+
+Creates a recipient file with the current key and a second key. Expects two age
+recipients, proving that normal writes preserve team access.
+
 ## Helper
 
 `hasIssue` performs an exact `(label, detail)` match over the issue slice, which
@@ -87,11 +107,13 @@ makes assertions resilient to ordering.
 
 ## Edge cases and notes
 
-- The tests do not touch the filesystem, the keyring, or the network.
+- Most tests do not touch the filesystem, the keyring, or the network. The three
+  recipient tests intentionally write a temporary recipient file under
+  `t.TempDir()` and clean it up automatically.
 - They use profiles constructed directly, including `Declared` metadata, so they
   also exercise the defensive fallbacks in the shared helpers.
 - `cmd` has no other test files yet; these tests are the main regression guard
-  for the daily-management features.
+  for the daily-management and recipient-resolution features.
 
 ## Related files
 
@@ -99,3 +121,5 @@ makes assertions resilient to ordering.
 - [`cmd/check.md`](check.md)
 - [`cmd/list.md`](list.md)
 - [`cmd/printEnv.md`](printEnv.md)
+- [`cmd/recipient.md`](recipient.md)
+- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md)

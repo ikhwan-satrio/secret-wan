@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 
+	"filippo.io/age"
+	"github.com/ikhwan-satrio/secret-wan/internal/config"
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
+	"github.com/ikhwan-satrio/secret-wan/internal/recipients"
 )
 
 func TestProfileKeysDeduplicatesAndSorts(t *testing.T) {
@@ -152,6 +156,76 @@ func TestSecretType(t *testing.T) {
 	}
 	if got := secretType(parsed, parsed.Profiles["default"], "Z"); got != "unmanaged" {
 		t.Errorf("secretType(Z) = %q, want unmanaged", got)
+	}
+}
+
+func TestEncryptionRecipientsUsesCurrentKeyWhenNoFile(t *testing.T) {
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.AppConfig{RecipientsFile: filepath.Join(t.TempDir(), "secret-wan.recipients")}
+	got, err := encryptionRecipients(cfg, identity, false)
+	if err != nil {
+		t.Fatalf("encryptionRecipients() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("encryptionRecipients() returned %d recipients, want 1", len(got))
+	}
+}
+
+func TestEncryptionRecipientsRequiresCurrentKey(t *testing.T) {
+	self, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.AppConfig{RecipientsFile: filepath.Join(t.TempDir(), "secret-wan.recipients")}
+	store := recipients.New(cfg.RecipientsPath())
+	if err := store.Save([]string{other.Recipient().String()}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := encryptionRecipients(cfg, self, false); err == nil {
+		t.Fatal("encryptionRecipients() error = nil, want a lockout error")
+	}
+
+	got, err := encryptionRecipients(cfg, self, true)
+	if err != nil {
+		t.Fatalf("encryptionRecipients(allowSelfExclusion) error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("encryptionRecipients(allowSelfExclusion) returned %d recipients, want 1", len(got))
+	}
+}
+
+func TestEncryptionRecipientsKeepsConfiguredKeys(t *testing.T) {
+	self, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.AppConfig{RecipientsFile: filepath.Join(t.TempDir(), "secret-wan.recipients")}
+	store := recipients.New(cfg.RecipientsPath())
+	if err := store.Save([]string{self.Recipient().String(), other.Recipient().String()}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := encryptionRecipients(cfg, self, false)
+	if err != nil {
+		t.Fatalf("encryptionRecipients() error = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("encryptionRecipients() returned %d recipients, want 2", len(got))
 	}
 }
 

@@ -110,14 +110,23 @@ var syncCmd = &cobra.Command{
 		}
 
 		if changed {
-			err = cryptoModule.SaveSecrets(storage, stored, identity.Recipient())
+			recips, err := encryptionRecipients(appConfig, identity, false)
+			if err != nil {
+				fmt.Println(ui.FormatError("Failed to resolve recipients", err.Error()))
+				os.Exit(1)
+			}
+
+			err = cryptoModule.SaveSecrets(storage, stored, recips...)
 			if err != nil {
 				fmt.Println(ui.FormatError("Failed to save secrets", err.Error()))
 				os.Exit(1)
 			}
 
 			fmt.Println()
-			fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render(fmt.Sprintf("Secrets encrypted and saved via %s", parsedManifest.Project.Provider)))
+			fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render(fmt.Sprintf(
+				"Secrets encrypted and saved via %s (%d recipient(s))",
+				parsedManifest.Project.Provider, len(recips),
+			)))
 			return
 		}
 

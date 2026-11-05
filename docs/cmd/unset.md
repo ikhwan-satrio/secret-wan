@@ -13,7 +13,8 @@ from the stored secret map and saves the result.
 - Require an existing master key and storage.
 - Fail when the key is not stored.
 - Warn when the key is still declared in one or more profiles.
-- Delete the key and persist the updated map.
+- Resolve all configured recipients and refuse accidental self-lockout.
+- Delete the key and persist the updated map encrypted for every recipient.
 
 ## Execution flow
 
@@ -26,7 +27,8 @@ from the stored secret map and saves the result.
 7. If any profile still declares the key, print a warning to stderr listing
    those profiles.
 8. Delete the key from the map.
-9. Save the whole map.
+9. Save the whole map through `saveSecrets(stored, false)`, which encrypts to
+   every configured recipient.
 10. Print `removed <KEY>`.
 
 ## Key code
@@ -57,7 +59,8 @@ step after confirming the key existed, so a save is always meaningful.
 
 - `internal/ui` for output.
 - Shared helpers: `newSession`, `requireManifest`, `requireExistingIdentity`,
-  `requireSecrets`, `profilesContaining`.
+  `requireSecrets`, `profilesContaining`, `saveSecrets`.
+- `internal/recipients` indirectly, through the shared save path.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes
@@ -69,6 +72,9 @@ step after confirming the key existed, so a save is always meaningful.
   The file/keyring entry is not deleted.
 - If the manifest still declares the key, `check` will report it as missing
   until it is set again or removed from the manifest.
+- The rewritten payload is encrypted to every configured recipient, preserving
+  team access after the removal.
+- If the recipient file excludes the current key, `unset` fails before writing.
 - Aliases make `secwan rm KEY` and `secwan remove KEY` equivalent to
   `secwan unset KEY`.
 
@@ -76,4 +82,6 @@ step after confirming the key existed, so a save is always meaningful.
 
 - [`cmd/set.md`](set.md) — create or update values.
 - [`cmd/check.md`](check.md) — reports keys that are still declared but missing.
-- [`cmd/shared.md`](shared.md) — `profilesContaining`.
+- [`cmd/shared.md`](shared.md) — `profilesContaining` and `saveSecrets`.
+- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md) —
+  recipient list semantics.

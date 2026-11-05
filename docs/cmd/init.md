@@ -15,6 +15,7 @@ starter `secret-wan.toml` manifest.
 - Load an existing master key or generate a new one.
 - Generate the provider-specific manifest template.
 - Create `secret-wan.toml` only when it does not already exist.
+- Create `secret-wan.recipients` for new projects, seeded with the current key.
 - Print the next steps for a new user.
 
 ## Execution flow
@@ -27,13 +28,17 @@ starter `secret-wan.toml` manifest.
 5. The selected label is mapped to a provider name:
    - labels beginning with `keyring` → `keyring`
    - everything else → `dotfiles`
-6. `cryptoModule.LoadOrGenerateKey()` ensures the master key exists.
+6. `cryptoModule.LoadOrGenerateKey()` ensures the master key exists and returns
+   the identity.
 7. `manifest.GetTemplate(providerName)` returns TOML text for the chosen
    provider.
 8. `os.Stat` checks whether the manifest already exists:
    - present → print an informational "already exists, skipped creation" message
-   - absent → write it with mode `0644`
-9. The command prints the next steps (`sync`, `check`, `exec`).
+   - absent → write it with mode `0644`, then create the recipient list
+9. When creating the recipient list, `recipients.Store.Exists` checks for an
+   existing `secret-wan.recipients`; if absent, it is saved with the current
+   public recipient.
+10. The command prints the next steps (`sync`, `check`, `exec`).
 
 ## Key code
 
@@ -63,11 +68,25 @@ if _, err := os.Stat(appConfig.SpecFile); err == nil {
 existing configuration. It is less guarded for the key, because
 `LoadOrGenerateKey` reuses any existing key.
 
+### Recipient list creation
+
+```go
+recipientStore := recipients.New(appConfig.RecipientsPath())
+if exists, _ := recipientStore.Exists(); !exists {
+    recipientStore.Save([]string{identity.Recipient().String()})
+}
+```
+
+The recipient file is created only in the branch where `secret-wan.toml` was
+newly created. Existing projects are not modified, which preserves their
+single-recipient fallback until they opt in with `secwan recipient add`.
+
 ## Dependencies
 
 - `internal/config` for the spec file name and app settings.
 - `internal/crypto` for master-key creation.
 - `internal/manifest` for the template.
+- `internal/recipients` for the initial public recipient list.
 - `internal/tui` for the selector.
 - `internal/ui` for output.
 - `github.com/charmbracelet/bubbletea` to run the TUI.
@@ -76,10 +95,14 @@ existing configuration. It is less guarded for the key, because
 ## Edge cases and notes
 
 - If `secret-wan.toml` exists, the template is not written, but the "Created
-  master key and ..." success line is also not printed. The command still prints
-  the next steps.
-- The manifest mode is `0644`; the master key itself is created with `0600` by
-  the crypto module.
+  master key and ..." success line is also not printed. The recipient list is
+  also left untouched. The command still prints the next steps.
+- If `secret-wan.recipients` already exists in a new project, it is not
+  overwritten; `init` only creates it when absent.
+- Recipient-list creation failures are warnings, not fatal errors, because the
+  project can still operate in single-recipient mode.
+- The manifest mode is `0644`; the recipient file is also `0644`; the master
+  key itself is created with `0600` by the crypto module.
 - The command does not create `env.enc`; storage appears on the first
   `sync` or `set` that saves data.
 - Choosing `keyring` does not verify that a keyring backend is available. Use
@@ -92,6 +115,8 @@ existing configuration. It is less guarded for the key, because
 ## Related files
 
 - [`cmd/sync.md`](sync.md) — first command that fills the template.
-- [`cmd/doctor.md`](doctor.md) — verifies storage and key health.
+- [`cmd/doctor.md`](doctor.md) — verifies storage, key, and recipient health.
+- [`cmd/recipient.md`](recipient.md) — adds teammates after initialization.
 - [`internal/manifest/template.md`](../internal/manifest/template.md)
+- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md)
 - [`internal/tui/select.md`](../internal/tui/select.md)

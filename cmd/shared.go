@@ -10,6 +10,7 @@ import (
 	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
 	"github.com/ikhwan-satrio/secret-wan/internal/provider"
+	"github.com/ikhwan-satrio/secret-wan/internal/recipients"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 )
 
@@ -32,6 +33,95 @@ func newSession() *appSession {
 		Crypto: crypto.CryptoModule{AppConfig: appConfig},
 		Parser: manifest.ParserModule{AppConfig: appConfig},
 	}
+}
+
+// recipientsStore returns the store for the project's public recipient list.
+func (s *appSession) recipientsStore() recipients.Store {
+	return recipients.New(s.Config.RecipientsPath())
+}
+
+// recipientKeys loads the configured public recipients. A missing file means
+// the project still uses the current key as its only recipient.
+func (s *appSession) recipientKeys() ([]string, error) {
+	return s.recipientsStore().Load()
+}
+
+// encryptionRecipients resolves the configured recipient list into age
+// recipients and, unless allowSelfExclusion is set, refuses to lock the current
+// key out of future writes.
+func (s *appSession) encryptionRecipients(allowSelfExclusion bool) ([]age.Recipient, error) {
+	return encryptionRecipients(s.Config, s.Identity, allowSelfExclusion)
+}
+
+// saveSecrets encrypts and saves the full secret map for all configured
+// recipients.
+func (s *appSession) saveSecrets(secrets map[string]string, allowSelfExclusion bool) error {
+	recips, err := s.encryptionRecipients(allowSelfExclusion)
+	if err != nil {
+		return err
+	}
+
+	return s.Crypto.SaveSecrets(s.Storage, secrets, recips...)
+}
+
+// rekey decrypts the current store and writes it back for the configured
+// recipients.
+func (s *appSession) rekey(allowSelfExclusion bool) (int, error) {
+	return rekeySecrets(s.Config, s.Crypto, s.Storage, s.Identity, allowSelfExclusion)
+}
+
+// encryptionRecipients is the package-level variant used by commands that do
+// not build an appSession, such as sync.
+func encryptionRecipients(appConfig config.AppConfig, identity *age.X25519Identity, allowSelfExclusion bool) ([]age.Recipient, error) {
+	if identity == nil {
+		return nil, fmt.Errorf("master key is not loaded")
+	}
+
+	keys, err := recipients.New(appConfig.RecipientsPath()).Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read recipients: %w", err)
+	}
+
+	self := identity.Recipient().String()
+	if len(keys) == 0 {
+		keys = []string{self}
+	}
+
+	if !allowSelfExclusion && !recipients.Contains(keys, self) {
+		return nil, fmt.Errorf(
+			"current key %s is not a recipient; run 'secwan recipient add %s' first",
+			self, self,
+		)
+	}
+
+	return recipients.Parse(keys)
+}
+
+// rekeySecrets re-encrypts the stored map for the configured recipients. A
+// missing store is treated as "nothing to rekey".
+func rekeySecrets(appConfig config.AppConfig, cryptoModule crypto.CryptoModule, storage provider.StorageProvider, identity *age.X25519Identity, allowSelfExclusion bool) (int, error) {
+	if identity == nil {
+		return 0, fmt.Errorf("master key is not loaded")
+	}
+
+	secrets, err := cryptoModule.LoadSecrets(storage, identity)
+	if err != nil {
+		if provider.IsNotFound(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+
+	recips, err := encryptionRecipients(appConfig, identity, allowSelfExclusion)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := cryptoModule.SaveSecrets(storage, secrets, recips...); err != nil {
+		return 0, err
+	}
+
+	return len(secrets), nil
 }
 
 // fail prints a styled error to stderr and terminates the process.

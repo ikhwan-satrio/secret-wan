@@ -5,8 +5,8 @@
 ## Purpose
 
 Implements `secwan doctor`, a read-oriented diagnostic command that inspects the
-environment, manifest, master key, storage provider, and profile consistency in
-one pass.
+environment, manifest, master key, recipient list, storage provider, and profile
+consistency in one pass.
 
 ## Responsibilities
 
@@ -15,6 +15,7 @@ one pass.
 - Validate the manifest and project metadata.
 - Inspect key location, directory permissions, file type, file permissions, and
   parseability.
+- Parse the public recipient list and check whether the current key is included.
 - Ask the storage provider to verify availability.
 - Decrypt stored secrets when possible.
 - Check each profile for missing values, missing rules, and conflicting rules.
@@ -87,7 +88,23 @@ directories.
 - `readDoctorIdentity` opens the file, parses age identities, rejects empty
   files, rejects non-X25519 keys, and reports the public recipient.
 
-### 4. Storage
+### 4. Recipients
+
+Loads `secret-wan.recipients` through `recipients.Store.Load`:
+
+| Check | Level | Condition |
+| :--- | :--- | :--- |
+| File | failure | The file exists but cannot be parsed or read |
+| Recipients | ok | No recipients configured (missing or empty file): single-recipient mode using the current key |
+| Recipients | ok | A list is present; reports the configured count |
+| Your key | ok | The current key appears in the list |
+| Your key | warning | The list exists but excludes the current key |
+
+The "Your key" check is skipped when the master key could not be loaded. A
+warning here means the next normal write would fail with a self-lockout error
+until the key is added with `secwan recipient add`.
+
+### 5. Storage
 
 The provider is created from the manifest, then checked through an optional
 interface:
@@ -102,7 +119,7 @@ All three providers implement `Check`. A "not found" result is a warning; other
 errors are failures. This lets `doctor` distinguish "not initialized yet" from
 "broken".
 
-### 5. Secrets
+### 6. Secrets
 
 Secrets are loaded only when both the identity and storage are usable.
 
@@ -110,7 +127,7 @@ Secrets are loaded only when both the identity and storage are usable.
 - decrypt error → failure
 - success → report the count
 
-### 6. Profiles and consistency
+### 7. Profiles and consistency
 
 `checkDoctorProfiles` covers:
 
@@ -131,7 +148,7 @@ detail string.
 
 - `filippo.io/age` for identity parsing.
 - `internal/config`, `internal/crypto`, `internal/manifest`,
-  `internal/provider`, `internal/ui`.
+  `internal/provider`, `internal/recipients`, `internal/ui`.
 - Shared helpers: `profileKeys`, `allDeclaredKeys`, `ruleFor`,
   `displayVersion`, `currentBuild`.
 - `github.com/spf13/cobra`.
@@ -147,6 +164,13 @@ detail string.
   meaningful.
 - Key and storage checks can partially succeed: for example, the file can be
   readable but fail to parse.
+- Recipient checks are independent of storage checks: a project can have a valid
+  recipient file but no encrypted payload yet.
+- An empty or missing recipient file is reported as healthy single-recipient
+  mode, not as an error, for backward compatibility. The doctor message says
+  "no recipients configured" so it does not claim the file is absent.
+- A recipient file that excludes the current key is only a warning; `doctor`
+  does not rewrite the file or rekey anything.
 - `doctor` never saves or modifies secrets.
 
 ## Related files
@@ -155,4 +179,7 @@ detail string.
 - [`internal/crypto/crypto.md`](../internal/crypto/crypto.md) — `KeyPath`,
   `LoadSecrets`.
 - [`internal/provider/provider.md`](../internal/provider/provider.md) — `Check`.
+- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md) —
+  recipient parsing.
+- [`cmd/recipient.md`](recipient.md) — fixes a self-lockout warning.
 - [`cmd/shared.md`](shared.md) — profile helpers.

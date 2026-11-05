@@ -13,6 +13,7 @@ import (
 	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
 	"github.com/ikhwan-satrio/secret-wan/internal/provider"
+	"github.com/ikhwan-satrio/secret-wan/internal/recipients"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -222,6 +223,28 @@ var doctorCmd = &cobra.Command{
 			}
 
 			identity = readDoctorIdentity(report, keySection, keyPath)
+		}
+
+		recipientsSection := report.section("Recipients")
+		recipientKeys, recipientErr := recipients.New(appConfig.RecipientsPath()).Load()
+		switch {
+		case recipientErr != nil:
+			report.fail(recipientsSection, "File", recipientErr.Error())
+		case len(recipientKeys) == 0:
+			report.ok(recipientsSection, "Recipients",
+				"single-recipient mode (no recipients configured)")
+		default:
+			report.ok(recipientsSection, "Recipients",
+				fmt.Sprintf("%d configured", len(recipientKeys)))
+			if identity != nil {
+				self := identity.Recipient().String()
+				if recipients.Contains(recipientKeys, self) {
+					report.ok(recipientsSection, "Your key", "listed")
+				} else {
+					report.warn(recipientsSection, "Your key",
+						"not listed; run 'secwan recipient add' before the next rekey")
+				}
+			}
 		}
 
 		storageSection := report.section("Storage")

@@ -81,7 +81,7 @@ func (c *CryptoModule) LoadKey() (*age.X25519Identity, error) {
 
 	identities, err := age.ParseIdentities(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse key: %v", err)
+		return nil, fmt.Errorf("failed to parse key: %w", err)
 	}
 	if len(identities) == 0 {
 		return nil, fmt.Errorf("key file is empty")
@@ -130,10 +130,16 @@ func (c *CryptoModule) LoadOrGenerateKey() (*age.X25519Identity, error) {
 	return identity, nil
 }
 
-// SaveSecrets mengenkripsi dan menyimpan secrets menggunakan StorageProvider
-func (c *CryptoModule) SaveSecrets(storage provider.StorageProvider, secrets map[string]string, recipient age.Recipient) error {
+// SaveSecrets mengenkripsi dan menyimpan secrets menggunakan StorageProvider.
+// The payload is encrypted to every supplied recipient, so any one matching
+// private key can decrypt it.
+func (c *CryptoModule) SaveSecrets(storage provider.StorageProvider, secrets map[string]string, recipients ...age.Recipient) error {
+	if len(recipients) == 0 {
+		return fmt.Errorf("at least one recipient is required")
+	}
+
 	var buf bytes.Buffer
-	w, err := age.Encrypt(&buf, recipient)
+	w, err := age.Encrypt(&buf, recipients...)
 	if err != nil {
 		return err
 	}
@@ -166,13 +172,13 @@ func (c *CryptoModule) LoadSecrets(storage provider.StorageProvider, identity ag
 	// Dekripsi data
 	r, err := age.Decrypt(bytes.NewReader(encryptedData), identity)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt: %v", err)
+		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
 
 	// Parse JSON
 	var secrets map[string]string
 	if err := json.NewDecoder(r).Decode(&secrets); err != nil {
-		return nil, fmt.Errorf("failed to parse secret JSON: %v", err)
+		return nil, fmt.Errorf("failed to parse secret JSON: %w", err)
 	}
 
 	return secrets, nil

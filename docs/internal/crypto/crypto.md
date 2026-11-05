@@ -16,7 +16,8 @@ encrypting/decrypting the secret map through a storage provider.
 - Generate unbiased random passwords.
 - Load an existing X25519 identity without creating one (`LoadKey`).
 - Load or generate the master key (`LoadOrGenerateKey`).
-- Serialize secrets to JSON, encrypt with age, and hand bytes to storage.
+- Serialize secrets to JSON, encrypt with age for one or more recipients, and
+  hand bytes to storage.
 - Load bytes from storage, decrypt with age, and parse JSON.
 
 ## Key type
@@ -82,15 +83,29 @@ decrypt existing storage.
    - the private identity line
    - a comment line containing the public recipient for sharing
 
-### `SaveSecrets(storage, secrets, recipient) error`
+### `SaveSecrets(storage, secrets, recipients...) error`
 
-1. Creates an in-memory buffer.
-2. Starts an age writer with the recipient.
-3. Marshals the map to indented JSON.
-4. Writes the JSON and closes the age writer (closing finalizes the stream).
-5. Calls `storage.Save(buf.Bytes())`.
+```go
+func (c *CryptoModule) SaveSecrets(
+    storage provider.StorageProvider,
+    secrets map[string]string,
+    recipients ...age.Recipient,
+) error
+```
 
-The provider receives only ciphertext.
+1. Rejects an empty recipient list.
+2. Creates an in-memory buffer.
+3. Starts an age writer with every recipient.
+4. Marshals the map to indented JSON.
+5. Writes the JSON and closes the age writer (closing finalizes the stream).
+6. Calls `storage.Save(buf.Bytes())`.
+
+The provider receives only ciphertext. The payload contains one age recipient
+stanza per key, so any matching private key can decrypt it.
+
+The variadic signature keeps the old single-recipient call style valid while
+enabling multi-recipient encryption. Passing zero recipients is a programming
+error and returns `at least one recipient is required`.
 
 ### `LoadSecrets(storage, identity) (map[string]string, error)`
 
@@ -117,18 +132,29 @@ Storage errors are returned unchanged so callers can use
 - The public recipient comment is informational. The recipient is derived from
   the identity at encryption time (`identity.Recipient()`), not read from the
   comment.
-- `LoadKey` uses `%v` when wrapping parse errors, so callers cannot unwrap the
-  underlying age error. They can still detect a missing file.
+- `LoadKey` wraps parse errors with `%w`, so callers can unwrap the underlying
+  age error while still detecting a missing file through `os.IsNotExist`.
 - `LoadSecrets` may return a nil map if the encrypted JSON is `null`. Callers
   normalize nil maps where needed.
+- `LoadSecrets` wraps decrypt and JSON errors with `%w`; this lets tests and
+  callers check `age.ErrIncorrectIdentity` with `errors.Is`.
 - `GenerateSecurePassword` returns an error if the OS random source fails.
 - `SaveSecrets` writes the full map; callers are responsible for merging
   existing values before saving.
+- Adding or removing a recipient does not change the plaintext; it only changes
+  the recipient stanzas produced by the next `SaveSecrets`.
 - `Set` and `sync` call `LoadOrGenerateKey`; read-only commands call `LoadKey`.
+- The caller decides which recipients to use. The crypto module does not read
+  `secret-wan.recipients`; that policy lives in `cmd/shared.go` and
+  `internal/recipients`.
 
 ## Related files
 
+- [`crypto_test.md`](crypto_test.md) — multi-recipient encryption tests.
 - [`internal/config/config.md`](../config/config.md)
 - [`internal/osutil/os.md`](../osutil/os.md)
 - [`internal/provider/provider.md`](../provider/provider.md)
+- [`internal/recipients/recipients.md`](../recipients/recipients.md) — builds
+  the recipient values passed to `SaveSecrets`.
+- [`cmd/shared.md`](../../cmd/shared.md) — applies recipient policy.
 - [`cmd/doctor.md`](../../cmd/doctor.md) — uses `KeyPath`.

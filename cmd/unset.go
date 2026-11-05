@@ -39,7 +39,7 @@ var unsetCmd = &cobra.Command{
 
 		delete(stored, key)
 
-		if err := session.Crypto.SaveSecrets(session.Storage, stored, session.Identity.Recipient()); err != nil {
+		if err := session.saveSecrets(stored, false); err != nil {
 			failErr("Failed to save secrets", err)
 		}
 

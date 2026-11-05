@@ -9,6 +9,7 @@ import (
 	"github.com/ikhwan-satrio/secret-wan/internal/config"
 	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
+	"github.com/ikhwan-satrio/secret-wan/internal/recipients"
 	"github.com/ikhwan-satrio/secret-wan/internal/tui"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
@@ -47,7 +48,7 @@ var initCmd = &cobra.Command{
 			providerName = "keyring"
 		}
 
-		_, err = cryptoModule.LoadOrGenerateKey()
+		identity, err := cryptoModule.LoadOrGenerateKey()
 		if err != nil {
 			fmt.Println(ui.FormatError("Failed to initialize master key", err.Error()))
 			os.Exit(1)
@@ -64,6 +65,20 @@ var initCmd = &cobra.Command{
 			}
 
 			fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render(fmt.Sprintf("Created master key and %s", appConfig.SpecFile)))
+
+			// A new project starts with the current key as its only recipient.
+			// Existing projects keep their single-recipient behavior until the
+			// recipient list is created explicitly.
+			recipientStore := recipients.New(appConfig.RecipientsPath())
+			if exists, statErr := recipientStore.Exists(); statErr != nil {
+				fmt.Printf("%s %s\n", ui.IconWarning, ui.Warning.Render(fmt.Sprintf("Could not inspect %s: %v", appConfig.RecipientsPath(), statErr)))
+			} else if !exists {
+				if saveErr := recipientStore.Save([]string{identity.Recipient().String()}); saveErr != nil {
+					fmt.Printf("%s %s\n", ui.IconWarning, ui.Warning.Render(fmt.Sprintf("Could not create %s: %v", appConfig.RecipientsPath(), saveErr)))
+				} else {
+					fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render(fmt.Sprintf("Created recipient list %s", appConfig.RecipientsPath())))
+				}
+			}
 		}
 
 		fmt.Println()

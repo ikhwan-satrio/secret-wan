@@ -26,6 +26,8 @@ Highlights:
 - `dotfiles` and `keyring` storage
 - runtime injection with `exec`
 - per-key management with `list`, `get`, `set`, and `unset`
+- multi-recipient age encryption for team sharing
+- recipient management with `recipient` and `rekey`
 - diagnostics with `doctor`
 - script-friendly `print-env` and `check --strict`
 - age encryption
@@ -52,7 +54,7 @@ and one guide per source, workflow, and configuration file.
 ### Command reference
 
 A table covering `init`, `sync`, `check`, `doctor`, `list`, `get`, `set`,
-`unset`, `print-env`, `exec`, and `version`.
+`unset`, `recipient`, `rekey`, `print-env`, `exec`, and `version`.
 
 It also documents common flags (`-p/--profile`, `--version`) and scripting
 examples:
@@ -68,13 +70,25 @@ secwan print-env -p staging --json | jq -r '.API_KEY'
 Examples for listing, revealing, setting, generating, removing, strict checking,
 and diagnosing.
 
+### Team sharing
+
+Explains how to share a project with multi-recipient age:
+
+- publish a public key with `secwan recipient me`;
+- add a teammate with `secwan recipient add <age1...>`;
+- re-encrypt after manual edits with `secwan rekey`;
+- inspect and remove recipients;
+- the `--force` escape hatch for intentional self-exclusion;
+- commit `secret-wan.recipients` because it contains only public keys.
+
 ### Storage providers
 
 Explains the trade-offs of:
 
-- **Dotfiles** — age-encrypted `env.enc`, easy to commit and share.
+- **Dotfiles** — age-encrypted `env.enc`, easy to commit and share; recipient
+  management is most useful here.
 - **Keyring** — OS-native credential storage, harder to share, Linux
-  dependencies.
+  dependencies; the recipient list still documents intended access.
 
 ### Development and building
 
@@ -95,8 +109,10 @@ GoReleaser, then links to the license file.
 - The Go badge says `1.22+`, but `go.mod` requires `1.26.9`. The `go.mod`
   directive is authoritative.
 - The README documents the behavior of the current command set, including the
-  newer `doctor`, `list`, `get`, `set`, `unset`, `version`, `--strict`, and
-  `--json` features.
+  newer `doctor`, `list`, `get`, `set`, `unset`, `recipient`, `rekey`,
+  `version`, `--strict`, and `--json` features.
+- The README documents `secret-wan.recipients` as public key material and warns
+  that removing a recipient does not scrub old Git history.
 - The provider descriptions match
   [`internal/provider/provider.md`](internal/provider/provider.md), with the
   caveat that Docker secrets are read-only and are not offered by `init`.
@@ -110,10 +126,14 @@ When adding a command or changing behavior:
 1. Update the command reference table.
 2. Add a concrete example for the new workflow.
 3. Keep the scripting section accurate if stdout/stderr behavior changes.
-4. Update this documentation index if new source files are added.
+4. Document any new generated project files alongside the command that creates
+   them.
+5. Update this documentation index if new source files are added.
 
 ## Related files
 
 - [`README.md`](README.md) — documentation index.
 - [`cmd/root.md`](cmd/root.md) — command registration.
+- [`recipients-file.md`](recipients-file.md) — the sharing file described in the
+  README.
 - [`goreleaser.md`](goreleaser.md) — release process.

@@ -60,7 +60,7 @@ currently inactive; global configuration is fixed by
 Each command file ends with an `init` function that calls
 `rootCmd.AddCommand(...)`. This is why importing the `cmd` package registers
 `init`, `sync`, `exec`, `check`, `doctor`, `list`, `get`, `set`, `unset`,
-`print-env`, and `version` without a central registry.
+`recipient`, `rekey`, `print-env`, and `version` without a central registry.
 
 ## Dependencies
 

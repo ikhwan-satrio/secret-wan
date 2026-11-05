@@ -67,7 +67,7 @@ Use --generate to create a cryptographically secure random value instead.`,
 		_, existed := stored[key]
 		stored[key] = value
 
-		if err := session.Crypto.SaveSecrets(session.Storage, stored, session.Identity.Recipient()); err != nil {
+		if err := session.saveSecrets(stored, false); err != nil {
 			failErr("Failed to save secrets", err)
 		}
 

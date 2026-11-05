@@ -21,7 +21,8 @@
   - `keyring`: Store secrets in your OS native Keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service/KeePassXC).
 - 🚀 **Runtime Injection (`exec`)**: Run your apps with secrets injected directly into the environment, bypassing shell history leaks.
 - 🔑 **Per-Key Management**: Use `list`, `get`, `set`, and `unset` for quick day-to-day changes without opening the full TUI.
-- 🩺 **Built-in Diagnostics**: Run `doctor` to validate your manifest, master key, storage provider, and secret consistency.
+- 👥 **Multi-Recipient Sharing**: Add teammates with `recipient add`, list access with `recipient list`, and re-encrypt on demand with `rekey`. Secrets are encrypted to every configured age public key.
+- 🩺 **Built-in Diagnostics**: Run `doctor` to validate your manifest, master key, recipients, storage provider, and secret consistency.
 - 🤖 **Script-Friendly Output**: `print-env` writes logs to stderr and supports `--json`; `check --strict` catches unmanaged secrets.
 - 🛡️ **Zero-Trust Encryption**: Uses [age](https://github.com/FiloSottile/age), a modern, simple, and highly secure file encryption tool.
 
@@ -107,6 +108,8 @@ secwan exec -p staging -- docker-compose up
 | `get` | Print a single secret. Values are masked unless `--reveal` is used. |
 | `set` | Create or update one secret without opening the TUI. Use `--generate` for random values. |
 | `unset` | Remove one secret from storage. |
+| `recipient` | List, identify, add, or remove age recipients. Changes rekey existing secrets automatically. |
+| `rekey` | Re-encrypt all stored secrets for the configured recipients. |
 | `print-env` | Print decrypted secrets to stdout in `KEY="VALUE"` format. Logs go to stderr. |
 | `exec` | Execute a command with secrets injected into the environment. |
 | `version` | Print version, commit, build date, Go version, and platform. |
@@ -157,13 +160,51 @@ secwan doctor
 
 ---
 
+## 👥 Sharing with your team
+
+`secret-wan` encrypts secrets to every public age recipient listed in
+`secret-wan.recipients`. The file contains public keys only and is safe to
+commit.
+
+```bash
+# Show your public key (send this to a teammate)
+secwan recipient me
+
+# See who can decrypt the project
+secwan recipient list
+
+# Add a teammate; existing secrets are re-encrypted automatically
+secwan recipient add age1...
+
+# Remove access; secrets are re-encrypted for the remaining keys
+secwan recipient remove age1...
+
+# Re-encrypt after editing secret-wan.recipients by hand
+secwan rekey
+```
+
+### How the recipient list works
+
+- New projects created by `init` get a `secret-wan.recipients` file seeded with
+  the current key.
+- Existing projects without the file keep the original single-recipient
+  behavior: the current key is used for new writes.
+- `set`, `unset`, and `sync` always encrypt to the full recipient list.
+- Normal writes fail if your own key is not in the list, which prevents
+  accidental lockout.
+- Removing your own key or excluding it with `rekey` requires `--force`.
+- A removed key can still decrypt old Git history. Rotate any secret the removed
+  teammate should no longer know.
+
+---
+
 ## 🗄️ Storage Providers
 
 When you run `secwan init`, you will be asked to choose a provider:
 
 ### 1. Dotfiles (Local Encrypted File)
 - **How it works**: Secrets are encrypted using `age` and saved to `env.enc` in your project root.
-- **Pros**: Easy to commit to Git (the file is encrypted), easy to share with the team (just share the age public key).
+- **Pros**: Easy to commit to Git (the file is encrypted), easy to share with the team via `secret-wan.recipients` and `recipient add`.
 - **Cons**: Requires managing the age private key (`~/.config/secret-wan/keys.txt`).
 
 ### 2. Keyring (OS Native Keychain)
@@ -186,6 +227,7 @@ When you run `secwan init`, you will be asked to choose a provider:
 │   ├── manifest/         # TOML manifest parsing and template generation
 │   ├── osutil/           # OS-specific helpers
 │   ├── provider/         # Storage providers (dotfiles, keyring, Docker)
+│   ├── recipients/       # Public age recipient list parsing and storage
 │   ├── secrets/          # Secret generation and prompt helpers
 │   ├── tui/              # Bubble Tea screens
 │   └── ui/               # Shared terminal theme and formatting

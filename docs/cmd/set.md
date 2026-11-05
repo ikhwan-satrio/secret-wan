@@ -18,7 +18,8 @@ without echo, or generate it.
 - Read the value from the argument, a hidden terminal prompt, a pipe, or the
   random generator.
 - Reject an empty value.
-- Save the updated secret map.
+- Resolve all configured recipients and refuse accidental self-lockout.
+- Save the updated secret map encrypted for every recipient.
 - Report whether the key was saved or updated.
 
 ## Execution flow
@@ -36,7 +37,8 @@ without echo, or generate it.
 8. Load secrets with `loadSecretsAllowMissing`, which tolerates a first write.
 9. Resolve the value with `resolveSecretValue`.
 10. Reject an empty value and suggest `unset`.
-11. Store the value and save the full map.
+11. Store the value and call `saveSecrets(stored, false)`, which resolves every
+    configured recipient and encrypts the full map to all of them.
 12. Print `saved` or `updated`, plus a hint for generated values.
 
 ## Key code
@@ -72,6 +74,18 @@ silently choosing one source.
 `loadSecretsAllowMissing` returns an empty map when no storage exists, allowing
 `set` to create `env.enc` (or the keyring entry) without requiring `sync` first.
 
+### Recipient handling
+
+```go
+if err := session.saveSecrets(stored, false); err != nil {
+    failErr("Failed to save secrets", err)
+}
+```
+
+`saveSecrets` loads `secret-wan.recipients`. A missing file means the current key
+is the only recipient. A non-empty list without the current key is an error, so
+`set` cannot silently write a payload that the current user cannot read.
+
 ### Empty values
 
 An empty argument or an empty prompt result is rejected:
@@ -89,7 +103,8 @@ This keeps "missing" and "empty" from becoming two different states.
 - `internal/ui` for output and warnings.
 - Shared helpers: `newSession`, `requireManifest`, `requireProfile`,
   `requireIdentity`, `loadSecretsAllowMissing`, `keyInProfile`,
-  `profilesContaining`.
+  `profilesContaining`, `saveSecrets`.
+- `internal/recipients` indirectly, through the shared save path.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes
@@ -108,6 +123,10 @@ This keeps "missing" and "empty" from becoming two different states.
   default).
 - The command saves the whole map, so other profiles and unmanaged keys are
   preserved.
+- The rewritten payload is encrypted to every key in `secret-wan.recipients`,
+  not just the current key.
+- If the recipient file excludes the current key, `set` fails before writing and
+  suggests `secwan recipient add`.
 - When stdin is not a terminal, a secret prompt reads all piped input and trims
   trailing newlines; this supports automation.
 
@@ -116,4 +135,7 @@ This keeps "missing" and "empty" from becoming two different states.
 - [`cmd/unset.md`](unset.md) — removal counterpart.
 - [`internal/secrets/secrets.md`](../internal/secrets/secrets.md) — prompt behavior.
 - [`internal/crypto/crypto.md`](../internal/crypto/crypto.md) — generation and save.
+- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md) —
+  recipient list semantics.
+- [`cmd/recipient.md`](recipient.md) — adding the current key back to the list.
 - [`cmd/sync.md`](sync.md) — bulk interactive workflow.
