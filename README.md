@@ -27,6 +27,15 @@
 
 ---
 
+## 📚 Documentation
+
+Every source, workflow, and configuration file is documented in the
+[`docs/`](docs/README.md) directory. Start with the
+[documentation index](docs/README.md) for an architecture overview and links to
+each per-file guide.
+
+---
+
 ## 📦 Installation
 
 ### Via Go Install
