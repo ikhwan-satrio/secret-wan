@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,12 @@ import (
 	"github.com/ikhwan-satrio/secret-wan/internal/config"
 	"github.com/ikhwan-satrio/secret-wan/internal/osutil"
 )
+
+// IsNotFound reports whether the storage error means "nothing has been stored
+// yet" (as opposed to a corrupt or unreadable store).
+func IsNotFound(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, keyring.ErrKeyNotFound)
+}
 
 type StorageProvider interface {
 	Save(data []byte) error
@@ -26,6 +33,22 @@ func (p *DotfilesProvider) Save(data []byte) error {
 
 func (p *DotfilesProvider) Load() ([]byte, error) {
 	return os.ReadFile(p.FilePath)
+}
+
+// Check verifies that the encrypted file exists and is readable.
+func (p *DotfilesProvider) Check() error {
+	info, err := os.Stat(p.FilePath)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("%s is a directory", p.FilePath)
+	}
+	if info.Size() == 0 {
+		return fmt.Errorf("%s is empty", p.FilePath)
+	}
+
+	return nil
 }
 
 type KeyringProvider struct {
@@ -61,6 +84,14 @@ func (p *KeyringProvider) Load() ([]byte, error) {
 	return item.Data, nil
 }
 
+// Check verifies that a keyring backend is available on this system.
+func (p *KeyringProvider) Check() error {
+	_, err := keyring.Open(keyring.Config{
+		ServiceName: p.ServiceName,
+	})
+	return err
+}
+
 type DockerSecretProvider struct {
 	SecretName string
 }
@@ -79,6 +110,21 @@ func (p *DockerSecretProvider) Load() ([]byte, error) {
 
 	cleaned := strings.TrimSpace(string(data))
 	return []byte(cleaned), nil
+}
+
+// Check verifies that the Docker secret is mounted and readable.
+func (p *DockerSecretProvider) Check() error {
+	filePath := filepath.Join(osutil.DockerSecretsDir(), p.SecretName)
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("%s is a directory", filePath)
+	}
+
+	return nil
 }
 
 func GetStorageProvider(appConfig config.AppConfig, providerName string, projectName string) StorageProvider {

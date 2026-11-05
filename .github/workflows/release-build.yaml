@@ -64,9 +64,13 @@ jobs:
       - name: Build Windows executables
         env:
           CGO_ENABLED: "0"
+          VERSION: ${{ inputs.tag }}
+          COMMIT: ${{ github.sha }}
         run: |
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/secwan-windows-amd64.exe .
-          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/secwan-windows-arm64.exe .
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}"
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/secwan-windows-amd64.exe .
+          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/secwan-windows-arm64.exe .
 
       - name: Add .exe checksums
         run: |

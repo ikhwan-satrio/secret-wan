@@ -19,6 +19,17 @@ type CryptoModule struct {
 	AppConfig config.AppConfig
 }
 
+// KeyPath returns the expected location of the master key without creating any
+// directories. Useful for diagnostics such as `secwan doctor`.
+func KeyPath(appName string) (string, error) {
+	dir, err := osutil.ConfigDir(appName)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, "keys.txt"), nil
+}
+
 func GetKeyPath(appName string) (string, error) {
 	dir, err := osutil.ConfigDir(appName)
 	if err != nil {
@@ -54,6 +65,34 @@ func (s *CryptoModule) GenerateSecurePassword(length int) (string, error) {
 	return string(result), nil
 }
 
+// LoadKey loads an existing master key. It never creates a new one, which is
+// what read-only commands should use.
+func (c *CryptoModule) LoadKey() (*age.X25519Identity, error) {
+	keyPath, err := KeyPath(c.AppConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(keyPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	identities, err := age.ParseIdentities(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse key: %v", err)
+	}
+	if len(identities) == 0 {
+		return nil, fmt.Errorf("key file is empty")
+	}
+
+	if id, ok := identities[0].(*age.X25519Identity); ok {
+		return id, nil
+	}
+	return nil, fmt.Errorf("unsupported key type")
+}
+
 // LoadOrGenerateKey memuat key yang sudah ada, atau membuat baru jika belum ada
 func (c *CryptoModule) LoadOrGenerateKey() (*age.X25519Identity, error) {
 	keyPath, err := GetKeyPath(c.AppConfig.AppName)
@@ -63,24 +102,9 @@ func (c *CryptoModule) LoadOrGenerateKey() (*age.X25519Identity, error) {
 
 	// 1. Coba baca file yang sudah ada
 	if _, err := os.Stat(keyPath); err == nil {
-		file, err := os.Open(keyPath)
-		if err != nil {
-			return nil, err
-		}
-		defer file.Close()
-
-		identities, err := age.ParseIdentities(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse key: %v", err)
-		}
-		if len(identities) == 0 {
-			return nil, fmt.Errorf("key file is empty")
-		}
-
-		if id, ok := identities[0].(*age.X25519Identity); ok {
-			return id, nil
-		}
-		return nil, fmt.Errorf("unsupported key type")
+		return c.LoadKey()
+	} else if !os.IsNotExist(err) {
+		return nil, err
 	}
 
 	// 2. Jika belum ada, generate key baru

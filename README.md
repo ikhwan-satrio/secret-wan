@@ -17,9 +17,12 @@
 - 🌍 **Multi-Environment Support**: Manage secrets for `default`, `staging`, `production`, or any custom profile.
 - 🎲 **Auto-Generation**: Automatically generate cryptographically secure passwords for specific keys.
 - 🗄️ **Flexible Storage Providers**:
-  - `dotfiles`: Store secrets in a local, age-encrypted file (`.secrets.age`). Perfect for GitOps.
+  - `dotfiles`: Store secrets in a local, age-encrypted file (`env.enc`). Perfect for GitOps.
   - `keyring`: Store secrets in your OS native Keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service/KeePassXC).
 - 🚀 **Runtime Injection (`exec`)**: Run your apps with secrets injected directly into the environment, bypassing shell history leaks.
+- 🔑 **Per-Key Management**: Use `list`, `get`, `set`, and `unset` for quick day-to-day changes without opening the full TUI.
+- 🩺 **Built-in Diagnostics**: Run `doctor` to validate your manifest, master key, storage provider, and secret consistency.
+- 🤖 **Script-Friendly Output**: `print-env` writes logs to stderr and supports `--json`; `check --strict` catches unmanaged secrets.
 - 🛡️ **Zero-Trust Encryption**: Uses [age](https://github.com/FiloSottile/age), a modern, simple, and highly secure file encryption tool.
 
 ---
@@ -89,12 +92,59 @@ secwan exec -p staging -- docker-compose up
 | :--- | :--- |
 | `init` | Initialize master key and generate `secret-wan.toml` template. |
 | `sync` | Interactively configure secrets based on the TOML schema. |
-| `check` | Verify if all required secrets are present and configured. |
-| `env` | Print decrypted secrets to stdout in `KEY="VALUE"` format. |
+| `check` | Verify if all required secrets are present and configured. Add `--strict` to flag unmanaged secrets and invalid rules. |
+| `doctor` | Diagnose the manifest, master key permissions, storage provider, and profile consistency. |
+| `list` | List secrets for a profile. Values are masked unless `--reveal` is used. |
+| `get` | Print a single secret. Values are masked unless `--reveal` is used. |
+| `set` | Create or update one secret without opening the TUI. Use `--generate` for random values. |
+| `unset` | Remove one secret from storage. |
+| `print-env` | Print decrypted secrets to stdout in `KEY="VALUE"` format. Logs go to stderr. |
 | `exec` | Execute a command with secrets injected into the environment. |
+| `version` | Print version, commit, build date, Go version, and platform. |
 
-### Global Flags
-- `-p, --profile string`: Specify the environment profile to use (default `"default"`).
+### Common Flags
+- `-p, --profile string`: Select the environment profile (available on profile-aware commands, default `"default"`).
+- `--version`: Print version information and exit.
+
+### Scripting with `print-env`
+
+`print-env` keeps stdout clean, so it can be evaluated directly:
+
+```bash
+eval "$(secwan print-env)"
+```
+
+Get structured output for other tools:
+
+```bash
+secwan print-env --json
+secwan print-env -p staging --json | jq -r '.API_KEY'
+```
+
+### Daily secret management
+
+```bash
+# List keys (values masked)
+secwan list
+
+# Show a value in plain text
+secwan get API_KEY --reveal
+
+# Set a value interactively (input is hidden)
+secwan set API_KEY
+
+# Generate a secure random value
+secwan set DB_PASSWORD --generate
+
+# Remove a key
+secwan unset OLD_KEY
+
+# Check for missing and unmanaged secrets
+secwan check --strict
+
+# Diagnose the whole setup
+secwan doctor
+```
 
 ---
 
@@ -103,7 +153,7 @@ secwan exec -p staging -- docker-compose up
 When you run `secwan init`, you will be asked to choose a provider:
 
 ### 1. Dotfiles (Local Encrypted File)
-- **How it works**: Secrets are encrypted using `age` and saved to `.secrets.age` in your project root.
+- **How it works**: Secrets are encrypted using `age` and saved to `env.enc` in your project root.
 - **Pros**: Easy to commit to Git (the file is encrypted), easy to share with the team (just share the age public key).
 - **Cons**: Requires managing the age private key (`~/.config/secret-wan/keys.txt`).
 

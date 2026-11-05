@@ -14,7 +14,10 @@ in a local file or your OS keychain, and injects them into commands at runtime
 without leaking them into your shell history.`,
 	Example: `  secwan init
   secwan sync
-  secwan check
+  secwan list
+  secwan set API_KEY
+  secwan check --strict
+  secwan doctor
   secwan exec -- npm start`,
 	SilenceUsage: true,
 }

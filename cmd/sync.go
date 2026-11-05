@@ -53,15 +53,44 @@ var syncCmd = &cobra.Command{
 		fmt.Println(ui.Muted.Render("Profile: ") + ui.Accent.Render(targetProfile.Name))
 		fmt.Println()
 
-		existingSecrets := make(map[string]string)
+		storage := provider.GetStorageProvider(appConfig, parsedManifest.Project.Provider, parsedManifest.Project.Name)
+
+		// Preserve secrets from other profiles and avoid overwriting existing
+		// generated values when sync is run more than once.
+		stored := make(map[string]string)
+		current, loadErr := cryptoModule.LoadSecrets(storage, identity)
+		switch {
+		case loadErr == nil:
+			stored = current
+		case provider.IsNotFound(loadErr):
+			// First sync: start with an empty store.
+		default:
+			fmt.Println(ui.FormatError("Failed to decrypt existing secrets", loadErr.Error()))
+			os.Exit(1)
+		}
+
+		changed := false
 
 		for _, key := range targetProfile.AutoGen {
-			existingSecrets[key], _ = cryptoModule.GenerateSecurePassword(100)
+			if existing, ok := stored[key]; ok && existing != "" {
+				fmt.Printf("  %s %s %s\n", ui.IconSuccess, ui.Muted.Render("kept"), ui.Key.Render(key))
+				continue
+			}
+
+			value, err := cryptoModule.GenerateSecurePassword(appConfig.SecretLength)
+			if err != nil {
+				fmt.Println(ui.FormatError("Failed to generate secret", fmt.Sprintf("%s: %v", key, err)))
+				os.Exit(1)
+			}
+
+			stored[key] = value
+			changed = true
 			fmt.Printf("  %s %s %s\n", ui.IconSuccess, ui.Muted.Render("generated"), ui.Key.Render(key))
 		}
 
-		if len(targetProfile.Required) > 0 {
-			p := tea.NewProgram(tui.NewModel(targetProfile.Required))
+		promptKeys := requiredKeysForPrompt(targetProfile)
+		if len(promptKeys) > 0 {
+			p := tea.NewProgram(tui.NewModel(promptKeys))
 			finalModel, err := p.Run()
 			if err != nil {
 				fmt.Println(ui.FormatError("TUI crashed", err.Error()))
@@ -75,14 +104,13 @@ var syncCmd = &cobra.Command{
 			}
 
 			for k, v := range m.Choices {
-				existingSecrets[k] = v
+				stored[k] = v
+				changed = true
 			}
 		}
 
-		if len(existingSecrets) > 0 {
-			storage := provider.GetStorageProvider(appConfig, parsedManifest.Project.Provider, parsedManifest.Project.Name)
-
-			err = cryptoModule.SaveSecrets(storage, existingSecrets, identity.Recipient())
+		if changed {
+			err = cryptoModule.SaveSecrets(storage, stored, identity.Recipient())
 			if err != nil {
 				fmt.Println(ui.FormatError("Failed to save secrets", err.Error()))
 				os.Exit(1)
@@ -93,7 +121,7 @@ var syncCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Println(ui.Muted.Render("No secrets to configure."))
+		fmt.Println(ui.Muted.Render("No changes to save."))
 	},
 }
 

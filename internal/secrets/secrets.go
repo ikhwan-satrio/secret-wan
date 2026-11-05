@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -24,19 +25,29 @@ func (s *SecretModule) GenerateSecureSecret() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
+// PromptUserInput reads a value from the terminal. Prompts are written to
+// stderr so stdout stays clean for scripting. When stdin is not a terminal,
+// the value is read from the pipe instead.
 func (s *SecretModule) PromptUserInput(key string, isSecret bool) (string, error) {
+	if isSecret && !term.IsTerminal(int(os.Stdin.Fd())) {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimRight(string(data), "\r\n"), nil
+	}
+
 	if isSecret {
-		fmt.Printf("Enter value for %s (hidden input): ", key)
-		// Gunakan term.ReadPassword agar karakter tidak muncul di layar
+		fmt.Fprintf(os.Stderr, "Enter value for %s (hidden input): ", key)
 		bytePassword, err := term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Println() // Print newline karena ReadPassword tidak melakukannya
+		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			return "", err
 		}
 		return string(bytePassword), nil
 	}
 
-	fmt.Printf("Enter value for %s: ", key)
+	fmt.Fprintf(os.Stderr, "Enter value for %s: ", key)
 	reader := bufio.NewReader(os.Stdin)
 	text, err := reader.ReadString('\n')
 	if err != nil {

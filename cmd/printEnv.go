@@ -1,96 +1,98 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
-	"github.com/ikhwan-satrio/secret-wan/internal/config"
-	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
-	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
-	"github.com/ikhwan-satrio/secret-wan/internal/provider"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var printEnvCmd = &cobra.Command{
 	Use:   "print-env",
-	Short: "Display decrypted secret values in KEY=VALUE format",
+	Short: "Print decrypted secrets to stdout in KEY=VALUE format",
+	Long: `Print decrypted secrets for a profile to stdout.
+
+All headers and warnings are written to stderr, so the output can safely be
+used in scripts:
+
+  eval "$(secwan print-env)"
+
+Use --json for a structured JSON object instead.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		profileName, err := cmd.Flags().GetString("profile")
-		if err != nil {
-			fmt.Println(ui.FormatError("Failed to read profile flag", err.Error()))
-			os.Exit(1)
-		}
+		profileName, _ := cmd.Flags().GetString("profile")
+		asJSON, _ := cmd.Flags().GetBool("json")
 
-		appConfig := config.UseApp()
-		cryptoModule := crypto.CryptoModule{AppConfig: appConfig}
-		parserModule := manifest.ParserModule{AppConfig: appConfig}
+		session := newSession()
+		session.requireManifest()
+		profile := session.requireProfile(profileName)
+		session.requireExistingIdentity()
+		stored := session.requireSecrets()
 
-		identity, err := cryptoModule.LoadOrGenerateKey()
-		if err != nil {
-			fmt.Println(ui.FormatError("Failed to load master key", err.Error()))
-			os.Exit(1)
-		}
-
-		parsedManifest, err := parserModule.ParseManifest()
-		if err != nil {
-			fmt.Println(ui.FormatError("Failed to parse manifest", err.Error()))
-			os.Exit(1)
-		}
-
-		targetProfile, exists := parsedManifest.Profiles[profileName]
-		if !exists {
-			validProfiles := manifest.GetProfileNames(parsedManifest.Profiles)
-			errMsg := fmt.Sprintf("Profile '%s' not found. Available profiles: %v", profileName, validProfiles)
-			fmt.Println(ui.FormatError("Invalid profile", errMsg))
-			os.Exit(1)
-		}
-
-		storage := provider.GetStorageProvider(appConfig, parsedManifest.Project.Provider, parsedManifest.Project.Name)
-		secrets, err := cryptoModule.LoadSecrets(storage, identity)
-		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Println(ui.FormatError("Secrets storage not found",
-					fmt.Sprintf("Run 'secwan sync -p %s' first.", profileName)))
-			} else {
-				fmt.Println(ui.FormatError("Failed to decrypt secrets", err.Error()))
-			}
-			os.Exit(1)
-		}
-
-		allowedKeys := make(map[string]bool)
-		for _, k := range targetProfile.Required {
-			allowedKeys[k] = true
-		}
-		for _, k := range targetProfile.AutoGen {
-			allowedKeys[k] = true
-		}
-
-		var activeKeys []string
-		for k := range allowedKeys {
-			if _, exists := secrets[k]; exists {
-				activeKeys = append(activeKeys, k)
+		active := make(map[string]string)
+		for _, key := range profileKeys(profile) {
+			if value, exists := stored[key]; exists {
+				active[key] = value
 			}
 		}
-		sort.Strings(activeKeys)
 
-		if len(activeKeys) == 0 {
-			fmt.Println(ui.Muted.Render(fmt.Sprintf("# No secrets configured for profile '%s'", targetProfile.Name)))
+		keys := make([]string, 0, len(active))
+		for key := range active {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		if !asJSON {
+			fmt.Fprintf(os.Stderr, "%s %s\n",
+				ui.Muted.Render("# Secrets for profile:"),
+				ui.Accent.Render(profile.Name),
+			)
+			fmt.Fprintln(os.Stderr, ui.Warning.Render("# WARNING: This output contains sensitive data. Do not share screenshots."))
+		}
+
+		if len(keys) == 0 {
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.IconWarning,
+				ui.Warning.Render(fmt.Sprintf("No secrets configured for profile '%s'.", profile.Name)))
+			if asJSON {
+				fmt.Println("{}")
+			}
 			return
 		}
 
-		fmt.Printf("%s %s\n", ui.Muted.Render("# Secrets for profile:"), ui.Accent.Render(targetProfile.Name))
-		fmt.Printf("%s\n", ui.Warning.Render("# WARNING: This output contains sensitive data. Do not share screenshots."))
-		fmt.Println()
+		if asJSON {
+			encoder := json.NewEncoder(os.Stdout)
+			encoder.SetEscapeHTML(false)
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(active); err != nil {
+				failErr("Failed to encode JSON", err)
+			}
+			return
+		}
 
-		for _, k := range activeKeys {
-			fmt.Printf("%s=\"%s\"\n", k, secrets[k])
+		for _, key := range keys {
+			fmt.Printf("%s=%s\n", key, quoteEnvValue(active[key]))
 		}
 	},
 }
 
+// quoteEnvValue renders a value as a double-quoted environment assignment.
+// Shell-sensitive characters are escaped so the result is safe to eval.
+func quoteEnvValue(value string) string {
+	escaped := strings.NewReplacer(
+		`\`, `\\`,
+		`"`, `\"`,
+		`$`, `\$`,
+		"`", "\\`",
+	).Replace(value)
+
+	return `"` + escaped + `"`
+}
+
 func init() {
 	printEnvCmd.Flags().StringP("profile", "p", "default", "Profile environment to display")
+	printEnvCmd.Flags().Bool("json", false, "Print secrets as a JSON object")
 	rootCmd.AddCommand(printEnvCmd)
 }
