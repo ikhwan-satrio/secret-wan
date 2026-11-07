@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
@@ -21,7 +20,7 @@ var unsetCmd = &cobra.Command{
 		}
 
 		session := newSession()
-		session.requireManifest()
+		session.requireProject()
 		session.requireExistingIdentity()
 		stored := session.requireSecrets()
 
@@ -31,17 +30,14 @@ var unsetCmd = &cobra.Command{
 
 		printHeader("unset")
 
-		declaredIn := profilesContaining(session.Manifest, key)
+		declaredIn := session.Manifest.ProfilesContaining(key)
 		if len(declaredIn) > 0 {
-			fmt.Fprintf(os.Stderr, "%s %s\n", ui.IconWarning,
-				ui.Warning.Render(fmt.Sprintf("%s is still declared in profile(s) %s.", key, strings.Join(declaredIn, ", "))))
+			warn(fmt.Sprintf("%s is still declared in profile(s) %s.", key, strings.Join(declaredIn, ", ")))
 		}
 
 		delete(stored, key)
 
-		if err := session.saveSecrets(stored, false); err != nil {
-			failErr("Failed to save secrets", err)
-		}
+		session.saveSecrets(stored, false)
 
 		fmt.Printf("%s %s %s\n", ui.IconSuccess, ui.Success.Render("removed"), ui.Key.Render(key))
 	},

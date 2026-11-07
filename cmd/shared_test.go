@@ -1,62 +1,13 @@
 package cmd
 
 import (
-	"path/filepath"
-	"reflect"
+	"fmt"
+	"strings"
 	"testing"
 
-	"filippo.io/age"
-	"github.com/ikhwan-satrio/secret-wan/internal/config"
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
-	"github.com/ikhwan-satrio/secret-wan/internal/recipients"
+	"github.com/ikhwan-satrio/secret-wan/internal/provider"
 )
-
-func TestProfileKeysDeduplicatesAndSorts(t *testing.T) {
-	profile := &manifest.Profile{
-		Required: []string{"B", "A"},
-		AutoGen:  []string{"A", "C"},
-	}
-
-	got := profileKeys(profile)
-	want := []string{"A", "B", "C"}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("profileKeys() = %v, want %v", got, want)
-	}
-}
-
-func TestRequiredKeysForPromptSkipsGenerated(t *testing.T) {
-	profile := &manifest.Profile{
-		Required: []string{"A", "B"},
-		AutoGen:  []string{"B", "C"},
-	}
-
-	got := requiredKeysForPrompt(profile)
-	want := []string{"A"}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("requiredKeysForPrompt() = %v, want %v", got, want)
-	}
-}
-
-func TestAllDeclaredKeysIncludesEveryProfile(t *testing.T) {
-	parsed := &manifest.Manifest{
-		Profiles: map[string]*manifest.Profile{
-			"default": {Declared: []string{"A", "B"}},
-			"staging": {Declared: []string{"C"}},
-		},
-	}
-
-	got := allDeclaredKeys(parsed)
-	for _, key := range []string{"A", "B", "C"} {
-		if !got[key] {
-			t.Errorf("allDeclaredKeys() missing %q", key)
-		}
-	}
-	if got["D"] {
-		t.Error("allDeclaredKeys() unexpectedly contains D")
-	}
-}
 
 func TestQuoteEnvValue(t *testing.T) {
 	tests := []struct {
@@ -125,7 +76,8 @@ func TestCollectStrictIssuesFlagsUnknownProvider(t *testing.T) {
 	}
 
 	issues := collectStrictIssues(parsed, map[string]string{"A": "value"})
-	if !hasIssue(issues, "project.provider", "unknown provider 'vault' (expected dotfiles, keyring, or docker)") {
+	expected := fmt.Sprintf("unknown provider 'vault' (expected %s)", strings.Join(provider.Names(), ", "))
+	if !hasIssue(issues, "project.provider", expected) {
 		t.Fatalf("missing unknown provider issue: %#v", issues)
 	}
 }
@@ -156,76 +108,6 @@ func TestSecretType(t *testing.T) {
 	}
 	if got := secretType(parsed, parsed.Profiles["default"], "Z"); got != "unmanaged" {
 		t.Errorf("secretType(Z) = %q, want unmanaged", got)
-	}
-}
-
-func TestEncryptionRecipientsUsesCurrentKeyWhenNoFile(t *testing.T) {
-	identity, err := age.GenerateX25519Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := config.AppConfig{RecipientsFile: filepath.Join(t.TempDir(), "secret-wan.recipients")}
-	got, err := encryptionRecipients(cfg, identity, false)
-	if err != nil {
-		t.Fatalf("encryptionRecipients() error = %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("encryptionRecipients() returned %d recipients, want 1", len(got))
-	}
-}
-
-func TestEncryptionRecipientsRequiresCurrentKey(t *testing.T) {
-	self, err := age.GenerateX25519Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
-	other, err := age.GenerateX25519Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := config.AppConfig{RecipientsFile: filepath.Join(t.TempDir(), "secret-wan.recipients")}
-	store := recipients.New(cfg.RecipientsPath())
-	if err := store.Save([]string{other.Recipient().String()}); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := encryptionRecipients(cfg, self, false); err == nil {
-		t.Fatal("encryptionRecipients() error = nil, want a lockout error")
-	}
-
-	got, err := encryptionRecipients(cfg, self, true)
-	if err != nil {
-		t.Fatalf("encryptionRecipients(allowSelfExclusion) error = %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("encryptionRecipients(allowSelfExclusion) returned %d recipients, want 1", len(got))
-	}
-}
-
-func TestEncryptionRecipientsKeepsConfiguredKeys(t *testing.T) {
-	self, err := age.GenerateX25519Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
-	other, err := age.GenerateX25519Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := config.AppConfig{RecipientsFile: filepath.Join(t.TempDir(), "secret-wan.recipients")}
-	store := recipients.New(cfg.RecipientsPath())
-	if err := store.Save([]string{self.Recipient().String(), other.Recipient().String()}); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := encryptionRecipients(cfg, self, false)
-	if err != nil {
-		t.Fatalf("encryptionRecipients() error = %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("encryptionRecipients() returned %d recipients, want 2", len(got))
 	}
 }
 

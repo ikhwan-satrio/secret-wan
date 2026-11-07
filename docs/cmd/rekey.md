@@ -15,12 +15,11 @@ another machine.
 ## Responsibilities
 
 - Require the manifest and an existing master key.
-- Load the recipient list.
+- Delegate recipient resolution, rekey, and missing-store handling to
+  `app.Service.Rekey`.
 - Fall back to the current key when no recipient file exists.
 - Refuse to lock the current key out unless `--force` is used.
 - Treat missing storage as "nothing to rekey" rather than an error.
-- Decrypt with the current identity.
-- Encrypt to every configured recipient.
 - Report the secret and recipient counts.
 - Warn when the current key was intentionally excluded.
 
@@ -29,17 +28,20 @@ another machine.
 ```text
 rekey
  ├── read --force
- ├── require manifest
- ├── require existing identity
- ├── load recipients
- │    ├── empty → use current key, print fallback notice
- │    └── present → use list
- ├── current key missing and no --force → fail with guidance
- ├── load and decrypt secrets
- │    ├── not found → print "No stored secrets to re-encrypt." and return
- │    └── error     → fail
- ├── parse recipients into age recipients
- ├── save the same secret map encrypted to every recipient
+ ├── session.requireProject
+ ├── session.requireExistingIdentity
+ ├── app.Service.Rekey(force)
+ │    ├── load recipients
+ │    │    ├── empty → use current key, mark UsedImplicit
+ │    │    └── present → use list
+ │    ├── current key missing and no --force → UserError
+ │    ├── load and decrypt secrets
+ │    │    ├── not found → Missing=true
+ │    │    └── error     → fail
+ │    ├── parse recipients into age recipients
+ │    └── save the same secret map encrypted to every recipient
+ ├── print fallback notice when UsedImplicit
+ ├── print "No stored secrets to re-encrypt." when Missing
  └── print counts; warn if the current key is excluded
 ```
 
@@ -47,16 +49,21 @@ rekey
 
 ### Recipient resolution
 
+The command calls:
+
 ```go
-keys, err := session.recipientKeys()
-self := session.Identity.Recipient().String()
-if len(keys) == 0 {
-    keys = []string{self}
-}
-if !recipients.Contains(keys, self) && !force {
-    fail("Current key is not a recipient", ...)
+result, err := session.Rekey(force)
+if err != nil {
+    failApp("Failed to re-encrypt secrets", err)
 }
 ```
+
+The service in [`../internal/app/recipients.md`](../internal/app/recipients.md):
+
+- loads `secret-wan.recipients`;
+- falls back to the current key when the file is empty;
+- enforces self-inclusion unless `force` is true;
+- returns a `RekeyResult` with counts and status flags.
 
 The empty-list fallback is the compatibility path for projects created before
 multi-recipient support.
@@ -88,11 +95,11 @@ fails with a hint to run `secwan recipient add <current-key>` first.
 
 ## Dependencies
 
-- `internal/provider` for `IsNotFound`.
-- `internal/recipients` for loading, membership, and parsing.
 - `internal/ui` for output.
-- Shared helpers: `newSession`, `requireManifest`, `requireExistingIdentity`,
-  `recipientKeys`, `printHeader`.
+- Shared helpers: `newSession`, `requireProject`, `requireExistingIdentity`,
+  `Rekey`, `failApp`, `warn`, `printHeader`.
+- [`../internal/app/recipients.md`](../internal/app/recipients.md) — recipient
+  policy and rekey.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes
@@ -111,9 +118,10 @@ fails with a hint to run `secwan recipient add <current-key>` first.
 ## Related files
 
 - [`recipient.md`](recipient.md) — add/remove commands that rekey automatically.
-- [`shared.md`](shared.md) — `recipientKeys`, `encryptionRecipients`,
-  `rekeySecrets`.
+- [`session.md`](session.md) — CLI service wrapper.
+- [`../internal/app/recipients.md`](../internal/app/recipients.md) — rekey
+  policy and results.
 - [`../internal/recipients/recipients.md`](../internal/recipients/recipients.md)
-  — recipient parsing.
-- [`../internal/crypto/crypto.md`](../internal/crypto/crypto.md) — variadic
+  — recipient storage.
+- [`../internal/crypto/secrets.md`](../internal/crypto/secrets.md) — variadic
   encryption.

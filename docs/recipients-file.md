@@ -118,8 +118,8 @@ secwan doctor
 ## Git and sharing notes
 
 - Commit `secret-wan.recipients`; it is public key material.
-- Do not commit `env.enc` unless the project intentionally uses the `dotfiles`
-  provider for GitOps.
+- Do not commit the configured encrypted file (default `env.enc`) unless the
+  project intentionally uses the `dotfiles` provider for GitOps.
 - Removed recipients can still decrypt old Git history; rotate exposed secrets.
 - `keyring` storage is per machine, so this file mainly helps with `dotfiles`
   and documents the intended access list for other providers.
@@ -136,5 +136,8 @@ manifest does not change the recipient list.
 - [`cmd/recipient.md`](cmd/recipient.md) — management commands.
 - [`cmd/rekey.md`](cmd/rekey.md) — manual re-encryption.
 - [`internal/recipients/recipients.md`](internal/recipients/recipients.md) —
-  parser and storage implementation.
-- [`internal/crypto/crypto.md`](internal/crypto/crypto.md) — payload encryption.
+  store and file format.
+- [`internal/app/recipients.md`](internal/app/recipients.md) — recipient policy
+  and rekey.
+- [`internal/crypto/secrets.md`](internal/crypto/secrets.md) — payload
+  encryption.

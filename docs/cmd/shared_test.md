@@ -4,45 +4,22 @@
 
 ## Purpose
 
-Unit tests for the shared command helpers that contain the most subtle logic:
-profile key normalization, strict-check issue collection, environment-value
-quoting, secret type classification, and recipient resolution.
+Unit tests for the command-layer logic that remains in `cmd`: environment-value
+quoting, strict-check issue collection, and the `list` secret-type classifier.
+
+Profile-key tests moved to
+[`internal/manifest/profile_test.md`](../internal/manifest/profile_test.md).
+Recipient-resolution tests moved to
+[`internal/app/recipients_test.md`](../internal/app/recipients_test.md).
 
 ## Responsibilities
 
-- Verify that profile keys are de-duplicated and sorted.
-- Verify that generated keys are excluded from interactive prompts.
-- Verify that unmanaged-key detection sees every profile.
 - Verify shell-safe quoting for `print-env`.
 - Verify strict-check findings for empty profiles, missing rules, and unknown
   providers.
 - Verify the `list` command's secret type labels.
-- Verify recipient fallback, self-lockout prevention, and configured key
-  preservation.
 
 ## Tests
-
-### `TestProfileKeysDeduplicatesAndSorts`
-
-Input:
-
-```go
-Required: []string{"B", "A"}
-AutoGen:  []string{"A", "C"}
-```
-
-Expected output: `[]string{"A", "B", "C"}`. This protects the union behavior in
-`profileKeys`.
-
-### `TestRequiredKeysForPromptSkipsGenerated`
-
-Input has `A` and `B` required, and `B` and `C` generated. Expected prompt list
-is only `A`. This prevents a key from being generated and then prompted again.
-
-### `TestAllDeclaredKeysIncludesEveryProfile`
-
-Builds a manifest with `default` declaring `A` and `B`, and `staging`
-declaring `C`. Asserts that all three are present and that `D` is absent.
 
 ### `TestQuoteEnvValue`
 
@@ -55,7 +32,8 @@ Table-driven cases:
 | `$HOME` | `"\$HOME"` |
 | `a\b` | `"a\\b"` |
 
-The test covers the escaping rules used for safe `eval "$(secwan print-env)"`.
+This covers the escaping rules used for safe
+`eval "$(secwan print-env)"`.
 
 ### `TestCollectStrictIssues`
 
@@ -72,7 +50,7 @@ There are exactly three issues:
 ### `TestCollectStrictIssuesFlagsUnknownProvider`
 
 Uses provider `vault` and expects a `project.provider` issue listing the valid
-providers (`dotfiles`, `keyring`, `docker`).
+providers from `provider.Names()` (`docker`, `dotfiles`, `env`, `keyring`, `s3`).
 
 ### `TestSecretType`
 
@@ -82,24 +60,6 @@ Checks the labels used by `list`:
 - `B`, declared only in `staging` → `other`
 - `Z`, not declared anywhere → `unmanaged`
 
-### `TestEncryptionRecipientsUsesCurrentKeyWhenNoFile`
-
-Builds a configuration with a recipients path in `t.TempDir()` and no file.
-Expects exactly one recipient, which is the current key. This protects the
-single-recipient fallback.
-
-### `TestEncryptionRecipientsRequiresCurrentKey`
-
-Creates a recipient file containing only another identity. Expects:
-
-- `allowSelfExclusion=false` → error;
-- `allowSelfExclusion=true` → success with one recipient.
-
-### `TestEncryptionRecipientsKeepsConfiguredKeys`
-
-Creates a recipient file with the current key and a second key. Expects two age
-recipients, proving that normal writes preserve team access.
-
 ## Helper
 
 `hasIssue` performs an exact `(label, detail)` match over the issue slice, which
@@ -107,19 +67,19 @@ makes assertions resilient to ordering.
 
 ## Edge cases and notes
 
-- Most tests do not touch the filesystem, the keyring, or the network. The three
-  recipient tests intentionally write a temporary recipient file under
-  `t.TempDir()` and clean it up automatically.
-- They use profiles constructed directly, including `Declared` metadata, so they
-  also exercise the defensive fallbacks in the shared helpers.
-- `cmd` has no other test files yet; these tests are the main regression guard
-  for the daily-management and recipient-resolution features.
+- These tests do not touch the filesystem, the keyring, or the network.
+- Profiles are constructed directly, including `Declared` and `Rules`, so the
+  defensive fallbacks in the manifest methods are exercised.
+- Strict checks now call `Profile.Keys()`, `Profile.Rule()`, and
+  `Manifest.DeclaredKeys()`.
 
 ## Related files
 
-- [`cmd/shared.md`](shared.md)
-- [`cmd/check.md`](check.md)
-- [`cmd/list.md`](list.md)
-- [`cmd/printEnv.md`](printEnv.md)
-- [`cmd/recipient.md`](recipient.md)
-- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md)
+- [`shared.md`](shared.md) — error and output helpers.
+- [`check.md`](check.md) — strict checks.
+- [`list.md`](list.md) — secret types.
+- [`printEnv.md`](printEnv.md) — quoting.
+- [`../internal/manifest/profile_test.md`](../internal/manifest/profile_test.md)
+  — moved profile tests.
+- [`../internal/app/recipients_test.md`](../internal/app/recipients_test.md) —
+  moved recipient tests.

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
+	"github.com/ikhwan-satrio/secret-wan/internal/provider"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -24,10 +25,10 @@ var checkCmd = &cobra.Command{
 		strict, _ := cmd.Flags().GetBool("strict")
 
 		session := newSession()
-		session.requireManifest()
+		session.requireProject()
 		profile := session.requireProfile(profileName)
 
-		expectedSecrets := profileKeys(profile)
+		expectedSecrets := profile.Keys()
 		if len(expectedSecrets) == 0 {
 			fail("Failed to load configuration", fmt.Sprintf("Profile '%s' must define at least one secret", profile.Name))
 		}
@@ -85,16 +86,14 @@ func collectStrictIssues(parsed *manifest.Manifest, stored map[string]string) []
 		issues = append(issues, strictIssue{"project.name", "project name is empty"})
 	}
 
-	switch parsed.Project.Provider {
-	case "", "dotfiles", "keyring", "docker":
-	default:
+	if !provider.IsKnown(parsed.Project.Provider) {
 		issues = append(issues, strictIssue{
 			"project.provider",
-			fmt.Sprintf("unknown provider '%s' (expected dotfiles, keyring, or docker)", parsed.Project.Provider),
+			fmt.Sprintf("unknown provider '%s' (expected %s)", parsed.Project.Provider, strings.Join(provider.Names(), ", ")),
 		})
 	}
 
-	declared := allDeclaredKeys(parsed)
+	declared := parsed.DeclaredKeys()
 
 	var extra []string
 	for key := range stored {
@@ -110,12 +109,12 @@ func collectStrictIssues(parsed *manifest.Manifest, stored map[string]string) []
 	for _, name := range manifest.GetProfileNames(parsed.Profiles) {
 		profile := parsed.Profiles[name]
 
-		if len(profileKeys(profile)) == 0 {
+		if len(profile.Keys()) == 0 {
 			issues = append(issues, strictIssue{name, "profile has no secrets defined"})
 		}
 
 		for _, key := range profile.Declared {
-			rule := ruleFor(profile, key)
+			rule := profile.Rule(key)
 			switch {
 			case !rule.Required && !rule.Generate:
 				issues = append(issues, strictIssue{key, fmt.Sprintf("profile '%s' has no rule (use required or generate)", name)})

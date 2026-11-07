@@ -123,7 +123,7 @@ While active:
 - The input is a password field (`EchoPassword`), so values are hidden.
 - Progress is based on the number of keys, not on the number of non-empty values.
 - If `NewModel` is called with zero keys, the view is not normally shown;
-  `sync` only launches the TUI when `requiredKeysForPrompt` is non-empty.
+  `sync` only launches the TUI when `Profile.PromptKeys()` is non-empty.
 
 ## Related files
 

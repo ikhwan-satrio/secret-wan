@@ -7,12 +7,8 @@
 package recipients
 
 import (
-	"fmt"
 	"os"
-	"sort"
 	"strings"
-
-	"filippo.io/age"
 )
 
 // DefaultFile is used when no explicit recipients path is configured.
@@ -82,101 +78,4 @@ func (s Store) Save(keys []string) error {
 	}
 
 	return os.WriteFile(s.Path, []byte(builder.String()), 0644)
-}
-
-// ParseLines converts file lines into normalized recipient strings. Empty
-// lines, comments, and inline comments are ignored.
-func ParseLines(lines []string) ([]string, error) {
-	keys := make([]string, 0, len(lines))
-
-	for index, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		if comment := strings.Index(line, "#"); comment >= 0 {
-			line = strings.TrimSpace(line[:comment])
-		}
-		if line == "" {
-			continue
-		}
-
-		recipient, err := age.ParseX25519Recipient(line)
-		if err != nil {
-			return nil, fmt.Errorf("invalid recipient on line %d: %w", index+1, err)
-		}
-
-		keys = append(keys, recipient.String())
-	}
-
-	return Normalize(keys)
-}
-
-// Normalize validates, de-duplicates, and sorts recipient strings.
-func Normalize(keys []string) ([]string, error) {
-	seen := make(map[string]bool, len(keys))
-	normalized := make([]string, 0, len(keys))
-
-	for _, key := range keys {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-
-		recipient, err := age.ParseX25519Recipient(key)
-		if err != nil {
-			return nil, fmt.Errorf("invalid recipient %q: %w", key, err)
-		}
-
-		value := recipient.String()
-		if seen[value] {
-			continue
-		}
-		seen[value] = true
-		normalized = append(normalized, value)
-	}
-
-	sort.Strings(normalized)
-
-	return normalized, nil
-}
-
-// Parse converts recipient strings into age recipients. Callers should pass a
-// normalized list from Load or Normalize.
-func Parse(keys []string) ([]age.Recipient, error) {
-	result := make([]age.Recipient, 0, len(keys))
-
-	for _, key := range keys {
-		recipient, err := age.ParseX25519Recipient(key)
-		if err != nil {
-			return nil, fmt.Errorf("invalid recipient %q: %w", key, err)
-		}
-		result = append(result, recipient)
-	}
-
-	return result, nil
-}
-
-// Contains reports whether key is present in keys.
-func Contains(keys []string, key string) bool {
-	for _, candidate := range keys {
-		if candidate == key {
-			return true
-		}
-	}
-
-	return false
-}
-
-// Remove returns a copy of keys without key.
-func Remove(keys []string, key string) []string {
-	result := make([]string, 0, len(keys))
-	for _, candidate := range keys {
-		if candidate != key {
-			result = append(result, candidate)
-		}
-	}
-
-	return result
 }

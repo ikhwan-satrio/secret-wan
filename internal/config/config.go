@@ -33,7 +33,7 @@ func UseApp() AppConfig {
 
 	return AppConfig{
 		SpecFile:        "secret-wan.toml",
-		EncFile:         "env.enc",
+		EncFile:         ".env.enc",
 		RecipientsFile:  "secret-wan.recipients",
 		GlobalMasterKey: configPath,
 		AppName:         "secret-wan",

@@ -125,8 +125,8 @@ The only input is the manifest path.
 ## Edge cases and notes
 
 - A profile with no keys is valid at parse time; `check` and `doctor` flag it.
-- A key with both flags appears in both `Required` and `AutoGen`; shared helpers
-  de-duplicate it, and strict checks warn about the combination.
+- A key with both flags appears in both `Required` and `AutoGen`; `Profile.Keys`
+  de-duplicates it, and strict checks warn about the combination.
 - The parser does not validate the provider name. `check --strict` and `doctor`
   do, while `provider.GetStorageProvider` falls back to `dotfiles`.
 - Duplicate TOML keys are rejected by the TOML decoder before this code sees
@@ -138,6 +138,7 @@ The only input is the manifest path.
 ## Related files
 
 - [`internal/manifest/helper.md`](helper.md) — sorted profile names.
+- [`internal/manifest/profile.md`](profile.md) — queries over the parsed fields.
 - [`internal/manifest/template.md`](template.md) — generates the manifest.
-- [`cmd/check.md`](../../cmd/check.md) — consumes `Declared` and `Rules`.
-- [`cmd/shared.md`](../../cmd/shared.md) — de-duplicates `Required`/`AutoGen`.
+- [`cmd/check.md`](../../cmd/check.md) — consumes `Declared` and `Rules` through
+  the profile methods.

@@ -4,13 +4,15 @@
 
 ## Purpose
 
-Unit tests for recipient parsing, normalization, storage, and set helpers.
+Unit tests for recipient parsing, normalization, storage, single-recipient
+command-line keys, and set helpers. The implementation is split across
+`recipients.go`, `parse.go`, and `keys.go`; this file exercises all three.
 
 ## Responsibilities
 
-- Verify that comments, blank lines, inline comments, duplicates, and whitespace
-  are handled correctly.
-- Verify that invalid recipients are rejected.
+- Verify comments, blank lines, inline comments, duplicates, and whitespace.
+- Verify invalid recipients are rejected.
+- Verify single-argument canonicalization.
 - Verify the `Store` save/load round trip and missing-file behavior.
 - Verify `Contains` and `Remove`.
 
@@ -49,6 +51,12 @@ returns a new slice containing only the remaining key.
 
 Confirms that an empty key is ignored but a malformed key is an error.
 
+### `TestParseRecipientCanonicalizesAndRejectsEmpty`
+
+Trims a valid recipient, checks the canonical string, and verifies that empty and
+malformed command-line inputs are rejected. This covers the helper used by
+`recipient add/remove`.
+
 ## Edge cases and notes
 
 - The tests generate real X25519 identities with `age.GenerateX25519Identity`,
@@ -56,9 +64,11 @@ Confirms that an empty key is ignored but a malformed key is an error.
 - Filesystem tests use `t.TempDir()` and do not touch the user's config
   directory.
 - The tests do not exercise file permissions; `Save` always uses `0644`.
+- The parser tests cover both file-line rules and single-argument rules.
 
 ## Related files
 
-- [`recipients.md`](recipients.md) — implementation under test.
-- [`cmd/recipient.md`](../../cmd/recipient.md) — command layer that uses these
-  helpers.
+- [`recipients.md`](recipients.md) — store and file format.
+- [`parse.md`](parse.md) — parsing and canonicalization.
+- [`keys.md`](keys.md) — membership helpers.
+- [`../../cmd/recipient.md`](../../cmd/recipient.md) — command layer.

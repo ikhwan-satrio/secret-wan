@@ -29,6 +29,11 @@ lives, the app name, and the default generated-secret length.
 | `AppName` | `secret-wan` | Used for config directory lookup and display |
 | `SecretLength` | `100` | Length of generated passwords |
 
+`EncFile` is the single source of truth for the encrypted filename. Providers
+read `AppConfig.EncFile` rather than hardcoding a name, so changing this one
+value in `UseApp` moves the payload for every backend that derives its location
+from it (the dotfiles file and the default S3 object key).
+
 ### `UseApp()`
 
 ```go

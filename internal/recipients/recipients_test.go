@@ -119,3 +119,26 @@ func TestNormalizeRejectsEmptyAndInvalid(t *testing.T) {
 		t.Error("Normalize(invalid) error = nil, want an error")
 	}
 }
+
+func TestParseRecipientCanonicalizesAndRejectsEmpty(t *testing.T) {
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	raw := "  " + identity.Recipient().String() + "  "
+	got, err := ParseRecipient(raw)
+	if err != nil {
+		t.Fatalf("ParseRecipient() error = %v", err)
+	}
+	if got != identity.Recipient().String() {
+		t.Fatalf("ParseRecipient() = %q, want %q", got, identity.Recipient().String())
+	}
+
+	if _, err := ParseRecipient("   "); err == nil {
+		t.Error("ParseRecipient(empty) error = nil, want an error")
+	}
+	if _, err := ParseRecipient("bad"); err == nil {
+		t.Error("ParseRecipient(invalid) error = nil, want an error")
+	}
+}

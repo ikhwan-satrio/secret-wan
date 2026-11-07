@@ -17,8 +17,11 @@
 - 🌍 **Multi-Environment Support**: Manage secrets for `default`, `staging`, `production`, or any custom profile.
 - 🎲 **Auto-Generation**: Automatically generate cryptographically secure passwords for specific keys.
 - 🗄️ **Flexible Storage Providers**:
-  - `dotfiles`: Store secrets in a local, age-encrypted file (`env.enc`). Perfect for GitOps.
+  - `dotfiles`: Store secrets in a local, age-encrypted file (`env.enc` by default, configurable via `EncFile`). Perfect for GitOps.
   - `keyring`: Store secrets in your OS native Keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service/KeePassXC).
+  - `docker`: Read a mounted Docker secret at runtime (read-only).
+  - `env`: Read a base64 payload from `SECWAN_ENV_ENC` (read-only, ideal for CI).
+  - `s3`: Store one encrypted object in AWS S3 or an S3-compatible bucket.
 - 🚀 **Runtime Injection (`exec`)**: Run your apps with secrets injected directly into the environment, bypassing shell history leaks.
 - 🔑 **Per-Key Management**: Use `list`, `get`, `set`, and `unset` for quick day-to-day changes without opening the full TUI.
 - 👥 **Multi-Recipient Sharing**: Add teammates with `recipient add`, list access with `recipient list`, and re-encrypt on demand with `rekey`. Secrets are encrypted to every configured age public key.
@@ -66,7 +69,7 @@ Edit the generated `secret-wan.toml` file to define your secrets:
 ```toml
 [project]
 name = "my-awesome-app"
-provider = "dotfiles" # or "keyring"
+provider = "dotfiles" # or "keyring", "docker", "env", "s3"
 
 [profiles.default]
 DB_PASSWORD = { generate = true }
@@ -200,10 +203,12 @@ secwan rekey
 
 ## 🗄️ Storage Providers
 
-When you run `secwan init`, you will be asked to choose a provider:
+When you run `secwan init`, you will be asked to choose between `dotfiles` and
+`keyring`. The other providers can be selected by editing `project.provider` in
+`secret-wan.toml`; `doctor` never requires a specific one.
 
 ### 1. Dotfiles (Local Encrypted File)
-- **How it works**: Secrets are encrypted using `age` and saved to `env.enc` in your project root.
+- **How it works**: Secrets are encrypted using `age` and saved to the configured encrypted file (`env.enc` by default) in your project root.
 - **Pros**: Easy to commit to Git (the file is encrypted), easy to share with the team via `secret-wan.recipients` and `recipient add`.
 - **Cons**: Requires managing the age private key (`~/.config/secret-wan/keys.txt`).
 
@@ -211,6 +216,27 @@ When you run `secwan init`, you will be asked to choose a provider:
 - **How it works**: Secrets are stored in your operating system's secure credential manager.
 - **Pros**: Highest security, leverages OS-level encryption/biometrics, no encrypted files cluttering your repo.
 - **Cons**: Harder to share with team members, requires specific OS dependencies (e.g., `libsecret` on Linux).
+
+### 3. Docker Secret (Read-Only)
+- **How it works**: Reads a mounted secret such as `/run/secrets/<project>`.
+- **Pros**: No extra configuration in the container; the platform manages distribution.
+- **Cons**: Read-only, so `sync`/`set` cannot update it through `secret-wan`.
+
+### 4. Environment Variable (Read-Only)
+- **How it works**: Reads base64 ciphertext from `SECWAN_ENV_ENC`.
+- **Pros**: Simple for CI pipelines and ephemeral containers.
+- **Cons**: Read-only, must be base64-encoded, and visible to the process environment.
+
+### 5. S3-Compatible Object Storage
+- **How it works**: Stores one encrypted object per project, by default at
+  `<project>/<configured encrypted file>` (default `<project>/env.enc`), using
+  AWS SDK for Go v2.
+- **Configuration**: `SECWAN_S3_BUCKET` (required), plus optional
+  `SECWAN_S3_KEY`, `SECWAN_S3_REGION`, `SECWAN_S3_ENDPOINT`, and
+  `SECWAN_S3_PATH_STYLE`. Credentials come from the standard AWS SDK chain.
+- **Pros**: Central storage for teams and CI, works with AWS S3, MinIO,
+  Cloudflare R2, and Backblaze B2.
+- **Cons**: Needs network access, bucket permissions, and credential management.
 
 ---
 
@@ -220,13 +246,14 @@ When you run `secwan init`, you will be asked to choose a provider:
 
 ```text
 .
-├── cmd/                  # Cobra command definitions
+├── cmd/                  # Cobra command definitions and output helpers
 ├── internal/
+│   ├── app/              # Application service: business logic used by commands
 │   ├── config/           # Application configuration
 │   ├── crypto/           # age encryption and master key handling
-│   ├── manifest/         # TOML manifest parsing and template generation
+│   ├── manifest/         # TOML manifest parsing, queries, and templates
 │   ├── osutil/           # OS-specific helpers
-│   ├── provider/         # Storage providers (dotfiles, keyring, Docker)
+│   ├── provider/         # Storage providers (dotfiles, keyring, Docker, env, S3)
 │   ├── recipients/       # Public age recipient list parsing and storage
 │   ├── secrets/          # Secret generation and prompt helpers
 │   ├── tui/              # Bubble Tea screens
@@ -286,6 +313,7 @@ Built with love using the best tools in the Go ecosystem:
 - **[Age](https://github.com/FiloSottile/age)**: For modern, secure file encryption.
 - **[BurntSushi/toml](https://github.com/BurntSushi/toml)**: For TOML parsing.
 - **[99designs/keyring](https://github.com/99designs/keyring)**: For cross-platform OS keychain access.
+- **[AWS SDK for Go v2](https://github.com/aws/aws-sdk-go-v2)**: For S3-compatible object storage.
 - **[GoReleaser](https://goreleaser.com/)**: For automated cross-compilation and releases.
 
 ---

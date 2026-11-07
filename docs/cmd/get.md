@@ -19,7 +19,7 @@ masked unless `--reveal` is passed.
 ## Execution flow
 
 1. `cobra.ExactArgs(1)` validates the key argument.
-2. Build a session, parse the manifest, resolve the profile.
+2. Build a session, load the project, resolve the profile.
 3. Require an existing identity and load secrets.
 4. Look up the key in the stored map.
 5. If absent, exit with a hint to run `secwan set <KEY>`.
@@ -32,13 +32,13 @@ masked unless `--reveal` is passed.
 ### Message for undeclared keys
 
 ```go
-if !keyInProfile(profile, key) {
+if !profile.HasKey(key) {
     detail := fmt.Sprintf("%s is not declared in profile '%s'.", key, profile.Name)
-    if others := profilesContaining(session.Manifest, key); len(others) > 0 {
+    if others := session.Manifest.ProfilesContaining(key); len(others) > 0 {
         detail = fmt.Sprintf("%s is declared in profile(s) %s, not '%s'.",
             key, strings.Join(others, ", "), profile.Name)
     }
-    fmt.Fprintf(os.Stderr, "%s %s\n", ui.IconWarning, ui.Warning.Render(detail))
+    warn(detail)
 }
 ```
 
@@ -53,9 +53,10 @@ the constant so both commands display the same mask.
 ## Dependencies
 
 - `internal/ui` for the warning and mask styling.
-- Shared helpers: `newSession`, `requireManifest`, `requireProfile`,
-  `requireExistingIdentity`, `requireSecrets`, `keyInProfile`,
-  `profilesContaining`.
+- Shared session helpers: `newSession`, `requireProject`, `requireProfile`,
+  `requireExistingIdentity`, `requireSecrets`, and `warn`.
+- [`internal/manifest/profile.md`](../internal/manifest/profile.md) — `HasKey`
+  and `ProfilesContaining`.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes

@@ -90,6 +90,7 @@ printf 'super-secret' | secwan set API_KEY
 
 ## Related files
 
-- [`internal/crypto/crypto.md`](../crypto/crypto.md) — `GenerateSecurePassword`.
+- [`internal/crypto/password.md`](../crypto/password.md) —
+  `GenerateSecurePassword`.
 - [`cmd/set.md`](../../cmd/set.md) — main consumer of `PromptUserInput`.
 - [`internal/config/config.md`](../config/config.md) — `SecretLength`.

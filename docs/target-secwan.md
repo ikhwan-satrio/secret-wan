@@ -49,8 +49,9 @@ go build -trimpath -ldflags="-s -w \
 - The file is platform-specific. A Linux binary will not run on macOS or
   Windows.
 - Never commit build artifacts; use GitHub Releases for distribution.
-- Running the binary from `target/` still reads `secret-wan.toml` and `env.enc`
-  from the **current working directory**, not from the binary's directory.
+- Running the binary from `target/` still reads `secret-wan.toml` and the
+  configured encrypted file (default `env.enc`) from the **current working
+  directory**, not from the binary's directory.
 - The binary is safe to delete and recreate.
 
 ## Related files

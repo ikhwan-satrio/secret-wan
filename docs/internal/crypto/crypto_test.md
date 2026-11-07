@@ -4,9 +4,10 @@
 
 ## Purpose
 
-Unit tests for multi-recipient encryption, recipient validation, and password
-generation. The tests use an in-memory storage provider, so they never touch the
-user's project files or keyring.
+Unit tests for the split crypto implementation: multi-recipient encryption
+(`secrets.go`), recipient validation, and password generation (`password.go`).
+The tests use an in-memory storage provider, so they never touch the user's
+project files or keyring.
 
 ## Responsibilities
 
@@ -72,7 +73,9 @@ The test does not assert character classes, because the generator is random.
 
 ## Related files
 
-- [`crypto.md`](crypto.md) — implementation under test.
+- [`crypto.md`](crypto.md) — module type.
+- [`secrets.md`](secrets.md) — encryption implementation under test.
+- [`password.md`](password.md) — generation implementation under test.
 - [`../../internal/provider/provider.md`](../provider/provider.md) — storage
   interface used by `memoryStorage`.
 - [`../../cmd/recipient.md`](../../cmd/recipient.md) — command layer that builds

@@ -6,10 +6,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/ikhwan-satrio/secret-wan/internal/config"
-	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
-	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
-	"github.com/ikhwan-satrio/secret-wan/internal/provider"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -21,64 +17,33 @@ var execCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		profileName, err := cmd.Flags().GetString("profile")
 		if err != nil {
-			fmt.Println(ui.FormatError("Failed to read profile flag", err.Error()))
-			os.Exit(1)
+			failErr("Failed to read profile flag", err)
 		}
 
-		appConfig := config.UseApp()
-		cryptoModule := crypto.CryptoModule{AppConfig: appConfig}
-		parserModule := manifest.ParserModule{AppConfig: appConfig}
+		session := newSession()
+		session.requireIdentity()
+		session.requireProject()
+		targetProfile := session.requireProfile(profileName)
 
-		identity, err := cryptoModule.LoadOrGenerateKey()
+		secrets, err := session.LoadSecrets()
 		if err != nil {
-			fmt.Println(ui.FormatError("Failed to load master key", err.Error()))
-			os.Exit(1)
-		}
-
-		parsedManifest, err := parserModule.ParseManifest()
-		if err != nil {
-			fmt.Println(ui.FormatError("Failed to parse manifest", err.Error()))
-			os.Exit(1)
-		}
-
-		targetProfile, exists := parsedManifest.Profiles[profileName]
-		if !exists {
-			validProfiles := manifest.GetProfileNames(parsedManifest.Profiles)
-			errMsg := fmt.Sprintf("Profile '%s' not found. Available profiles: %v", profileName, validProfiles)
-			fmt.Println(ui.FormatError("Invalid profile", errMsg))
-			os.Exit(1)
-		}
-
-		storage := provider.GetStorageProvider(appConfig, parsedManifest.Project.Provider, parsedManifest.Project.Name)
-
-		secrets, err := cryptoModule.LoadSecrets(storage, identity)
-		if err != nil {
-			if os.IsNotExist(err) {
-				fmt.Println(ui.FormatError("Secrets storage not found",
-					fmt.Sprintf("Run 'secwan sync -p %s' first.", profileName)))
-			} else {
-				fmt.Println(ui.FormatError("Failed to decrypt secrets", err.Error()))
-			}
-			os.Exit(1)
+			failApp("Failed to decrypt secrets", err)
 		}
 
 		allowedKeys := make(map[string]bool)
-		for _, k := range targetProfile.Required {
-			allowedKeys[k] = true
-		}
-		for _, k := range targetProfile.AutoGen {
-			allowedKeys[k] = true
+		for _, key := range targetProfile.Keys() {
+			allowedKeys[key] = true
 		}
 
 		filteredSecrets := make(map[string]string)
-		for k, v := range secrets {
-			if allowedKeys[k] {
-				filteredSecrets[k] = v
+		for key, value := range secrets {
+			if allowedKeys[key] {
+				filteredSecrets[key] = value
 			}
 		}
 
-		for k, v := range filteredSecrets {
-			os.Setenv(k, v)
+		for key, value := range filteredSecrets {
+			os.Setenv(key, value)
 		}
 
 		targetCmd := args[0]
@@ -98,8 +63,7 @@ var execCmd = &cobra.Command{
 			if exitError, ok := err.(*exec.ExitError); ok {
 				os.Exit(exitError.ExitCode())
 			}
-			fmt.Println(ui.FormatError("Failed to execute command", err.Error()))
-			os.Exit(1)
+			failErr("Failed to execute command", err)
 		}
 	},
 }

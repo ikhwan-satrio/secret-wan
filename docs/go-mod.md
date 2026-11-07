@@ -38,6 +38,10 @@ through `go-version-file: go.mod`, so CI and local builds use the same target.
 | `filippo.io/age` | v1.3.2 | X25519 identities and file/stream encryption |
 | `github.com/99designs/keyring` | v1.2.2 | OS keychain/keyring access |
 | `github.com/BurntSushi/toml` | v1.6.0 | Manifest parsing |
+| `github.com/aws/aws-sdk-go-v2` | v1.47.8 | AWS SDK core types |
+| `github.com/aws/aws-sdk-go-v2/config` | v1.33.16 | AWS credential and region loading |
+| `github.com/aws/aws-sdk-go-v2/service/s3` | v1.114.9 | S3-compatible object storage |
+| `github.com/aws/smithy-go` | v1.28.8 | AWS API error types and transport |
 | `github.com/charmbracelet/bubbles` | v1.0.0 | Text input component for Bubble Tea |
 | `github.com/charmbracelet/bubbletea` | v1.3.10 | Interactive TUI runtime |
 | `github.com/charmbracelet/lipgloss` | v1.1.0 | Terminal styling and layout |
@@ -50,6 +54,8 @@ The second `require` block lists modules pulled in by the direct dependencies,
 including:
 
 - age's HPKE primitives
+- AWS SDK internals (`credentials`, `feature/ec2/imds`, `service/internal/*`,
+  `service/sso`, `service/ssooidc`, `service/sts`, `service/signin`)
 - keychain/keyring platform backends (`go-keychain`, `wincred`, `dbus`,
   `go-libsecret`, `jose2go`)
 - Bubble Tea's terminal and width libraries (`go-isatty`, `termenv`,
@@ -70,6 +76,7 @@ hand.
 | Encryption | age |
 | Manifest | BurntSushi/toml |
 | Keyring | 99designs/keyring |
+| S3 storage | AWS SDK for Go v2 (core, config, S3, smithy-go) |
 | Prompting | x/term |
 
 ## Edge cases and notes

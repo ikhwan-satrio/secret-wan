@@ -2,13 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/ikhwan-satrio/secret-wan/internal/config"
-	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
-	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
-	"github.com/ikhwan-satrio/secret-wan/internal/provider"
 	"github.com/ikhwan-satrio/secret-wan/internal/tui"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
@@ -20,53 +15,23 @@ var syncCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		profileName, err := cmd.Flags().GetString("profile")
 		if err != nil {
-			fmt.Println(ui.FormatError("Failed to read profile flag", err.Error()))
-			os.Exit(1)
+			failErr("Failed to read profile flag", err)
 		}
 
-		appConfig := config.UseApp()
-		cryptoModule := crypto.CryptoModule{AppConfig: appConfig}
-		parserModule := manifest.ParserModule{AppConfig: appConfig}
+		session := newSession()
+		session.requireIdentity()
+		session.requireProject()
+		targetProfile := session.requireProfile(profileName)
 
-		identity, err := cryptoModule.LoadOrGenerateKey()
-		if err != nil {
-			fmt.Println(ui.FormatError("Failed to load master key", err.Error()))
-			os.Exit(1)
-		}
-
-		parsedManifest, err := parserModule.ParseManifest()
-		if err != nil {
-			fmt.Println(ui.FormatError("Failed to parse manifest", err.Error()))
-			os.Exit(1)
-		}
-
-		targetProfile, exists := parsedManifest.Profiles[profileName]
-		if !exists {
-			validProfiles := manifest.GetProfileNames(parsedManifest.Profiles)
-			errMsg := fmt.Sprintf("Profile '%s' not found. Available profiles: %v", profileName, validProfiles)
-			fmt.Println(ui.FormatError("Invalid profile", errMsg))
-			os.Exit(1)
-		}
-
-		fmt.Println(ui.Title.Render("secret-wan") + ui.Muted.Render("  •  sync"))
-		fmt.Println(ui.Divider(44))
+		printHeader("sync")
 		fmt.Println(ui.Muted.Render("Profile: ") + ui.Accent.Render(targetProfile.Name))
 		fmt.Println()
 
-		storage := provider.GetStorageProvider(appConfig, parsedManifest.Project.Provider, parsedManifest.Project.Name)
-
 		// Preserve secrets from other profiles and avoid overwriting existing
 		// generated values when sync is run more than once.
-		stored := make(map[string]string)
-		current, loadErr := cryptoModule.LoadSecrets(storage, identity)
-		switch {
-		case loadErr == nil:
-			stored = current
-		case provider.IsNotFound(loadErr):
-			// First sync: start with an empty store.
-		default:
-			fmt.Println(ui.FormatError("Failed to decrypt existing secrets", loadErr.Error()))
-			os.Exit(1)
+		stored, _, err := session.LoadSecretsAllowMissing()
+		if err != nil {
+			failApp("Failed to decrypt existing secrets", err)
 		}
 
 		changed := false
@@ -77,10 +42,9 @@ var syncCmd = &cobra.Command{
 				continue
 			}
 
-			value, err := cryptoModule.GenerateSecurePassword(appConfig.SecretLength)
+			value, err := session.GenerateSecret()
 			if err != nil {
-				fmt.Println(ui.FormatError("Failed to generate secret", fmt.Sprintf("%s: %v", key, err)))
-				os.Exit(1)
+				fail("Failed to generate secret", fmt.Sprintf("%s: %v", key, err))
 			}
 
 			stored[key] = value
@@ -88,13 +52,12 @@ var syncCmd = &cobra.Command{
 			fmt.Printf("  %s %s %s\n", ui.IconSuccess, ui.Muted.Render("generated"), ui.Key.Render(key))
 		}
 
-		promptKeys := requiredKeysForPrompt(targetProfile)
+		promptKeys := targetProfile.PromptKeys()
 		if len(promptKeys) > 0 {
 			p := tea.NewProgram(tui.NewModel(promptKeys))
 			finalModel, err := p.Run()
 			if err != nil {
-				fmt.Println(ui.FormatError("TUI crashed", err.Error()))
-				os.Exit(1)
+				failErr("TUI crashed", err)
 			}
 
 			m := finalModel.(tui.Model)
@@ -103,29 +66,19 @@ var syncCmd = &cobra.Command{
 				return
 			}
 
-			for k, v := range m.Choices {
-				stored[k] = v
+			for key, value := range m.Choices {
+				stored[key] = value
 				changed = true
 			}
 		}
 
 		if changed {
-			recips, err := encryptionRecipients(appConfig, identity, false)
-			if err != nil {
-				fmt.Println(ui.FormatError("Failed to resolve recipients", err.Error()))
-				os.Exit(1)
-			}
-
-			err = cryptoModule.SaveSecrets(storage, stored, recips...)
-			if err != nil {
-				fmt.Println(ui.FormatError("Failed to save secrets", err.Error()))
-				os.Exit(1)
-			}
+			recipientCount := session.saveSecrets(stored, false)
 
 			fmt.Println()
 			fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render(fmt.Sprintf(
 				"Secrets encrypted and saved via %s (%d recipient(s))",
-				parsedManifest.Project.Provider, len(recips),
+				session.Manifest.Project.Provider, recipientCount,
 			)))
 			return
 		}

@@ -20,9 +20,9 @@ script-friendly format while sending every header, warning, and error to
 
 ## Execution flow
 
-1. Build a session, parse the manifest, resolve the profile.
+1. Build a session, load the project, resolve the profile.
 2. Require an existing identity and load secrets.
-3. Build `active` from `profileKeys(profile)` and the stored map.
+3. Build `active` from `profile.Keys()` and the stored map.
 4. Sort the active keys.
 5. In text mode, print a comment header and a warning to stderr.
 6. If there are no keys:
@@ -86,7 +86,8 @@ are encoded by `encoding/json`, which sorts map keys deterministically.
 ## Dependencies
 
 - `internal/ui` for warnings and colors.
-- Shared session helpers from [`cmd/shared.md`](shared.md).
+- Shared session helpers from [`cmd/session.md`](session.md).
+- [`internal/manifest/profile.md`](../internal/manifest/profile.md) — `Keys`.
 - `encoding/json`, `os`, `sort`, `strings`.
 - `github.com/spf13/cobra`.
 

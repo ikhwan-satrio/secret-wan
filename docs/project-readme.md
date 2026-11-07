@@ -23,7 +23,7 @@ Highlights:
 - TOML manifests
 - multiple profiles
 - auto-generated secrets
-- `dotfiles` and `keyring` storage
+- `dotfiles`, `keyring`, `docker`, `env`, and `s3` storage
 - runtime injection with `exec`
 - per-key management with `list`, `get`, `set`, and `unset`
 - multi-recipient age encryption for team sharing
@@ -85,14 +85,23 @@ Explains how to share a project with multi-recipient age:
 
 Explains the trade-offs of:
 
-- **Dotfiles** — age-encrypted `env.enc`, easy to commit and share; recipient
-  management is most useful here.
+- **Dotfiles** — age-encrypted configured file (default `env.enc`), easy to
+  commit and share; recipient management is most useful here.
 - **Keyring** — OS-native credential storage, harder to share, Linux
   dependencies; the recipient list still documents intended access.
+- **Docker secret** — read-only payload from a mounted secret, suitable for
+  containers.
+- **Environment variable** — read-only base64 payload from `SECWAN_ENV_ENC`,
+  suitable for CI.
+- **S3** — one encrypted object in an S3-compatible bucket, configured through
+  `SECWAN_S3_*` environment variables.
+
+Only `dotfiles` and `keyring` are offered by `init`; the others are selected by
+editing `project.provider`.
 
 ### Development and building
 
-- Project structure tree.
+- Project structure tree, including the `internal/app` service layer.
 - Build command with `CGO_ENABLED=0`, `-trimpath`, `-ldflags="-s -w"`.
 - Local GoReleaser snapshot command.
 - Automated release flow via Release Please.
@@ -101,8 +110,8 @@ Explains the trade-offs of:
 
 ### Tech stack and license
 
-Lists Cobra, Bubble Tea, age, BurntSushi/toml, 99designs/keyring, and
-GoReleaser, then links to the license file.
+Lists Cobra, Bubble Tea, age, BurntSushi/toml, 99designs/keyring, the AWS SDK for
+Go v2, and GoReleaser, then links to the license file.
 
 ## Accuracy notes
 
@@ -111,11 +120,15 @@ GoReleaser, then links to the license file.
 - The README documents the behavior of the current command set, including the
   newer `doctor`, `list`, `get`, `set`, `unset`, `recipient`, `rekey`,
   `version`, `--strict`, and `--json` features.
+- The project tree lists `internal/app` as the application service layer between
+  `cmd` and the domain packages; see
+  [`internal/app/service.md`](internal/app/service.md).
 - The README documents `secret-wan.recipients` as public key material and warns
   that removing a recipient does not scrub old Git history.
-- The provider descriptions match
-  [`internal/provider/provider.md`](internal/provider/provider.md), with the
-  caveat that Docker secrets are read-only and are not offered by `init`.
+- The provider descriptions match the provider package documentation, with the
+  caveats that `docker` and `env` are read-only and `init` only offers
+  `dotfiles` and `keyring`. See
+  [`internal/provider/provider.md`](internal/provider/provider.md).
 - The `LICENSE` file contains the MIT License; see
   [`license.md`](license.md).
 
@@ -134,6 +147,8 @@ When adding a command or changing behavior:
 
 - [`README.md`](README.md) — documentation index.
 - [`cmd/root.md`](cmd/root.md) — command registration.
+- [`internal/app/service.md`](internal/app/service.md) — application service
+  described in the project tree.
 - [`recipients-file.md`](recipients-file.md) — the sharing file described in the
   README.
 - [`goreleaser.md`](goreleaser.md) — release process.

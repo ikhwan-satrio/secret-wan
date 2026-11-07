@@ -26,10 +26,10 @@ committed. Keeping build artifacts out of Git avoids large binaries in history.
 
 ## Edge cases and notes
 
-- `env.enc` is **not** ignored. For the `dotfiles` provider, the encrypted file
-  is intentionally committable so teams can share it. The master key
-  (`~/.config/secret-wan/keys.txt`) lives outside the repository and is never
-  tracked.
+- The configured encrypted file (`env.enc` by default) is **not** ignored. For
+  the `dotfiles` provider, the encrypted file is intentionally committable so
+  teams can share it. The master key (`~/.config/secret-wan/keys.txt`) lives
+  outside the repository and is never tracked.
 - `secret-wan.toml` is not ignored; it is part of the project definition.
 - If you build to a different output path, add that path here.
 - Git ignore rules do not affect already tracked files; use `git rm --cached`
@@ -38,5 +38,5 @@ committed. Keeping build artifacts out of Git avoids large binaries in history.
 ## Related files
 
 - [`target-secwan.md`](target-secwan.md) — ignored local binary.
-- [`internal/provider/provider.md`](internal/provider/provider.md) — `env.enc`
-  storage.
+- [`internal/provider/provider.md`](internal/provider/provider.md) — the
+  configured encrypted file and providers.

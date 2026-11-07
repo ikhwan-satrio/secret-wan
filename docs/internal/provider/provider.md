@@ -4,20 +4,26 @@
 
 ## Purpose
 
-Defines the storage abstraction and three implementations: local encrypted
-file (`dotfiles`), OS keyring (`keyring`), and mounted Docker secret (`docker`).
+Defines the storage abstraction shared by every provider and the sentinel error
+used to distinguish an empty store from a broken one. The implementations are
+split by backend:
 
-## Responsibilities
+## Package layout
 
-- Define the `StorageProvider` interface (`Save` and `Load` byte slices).
-- Distinguish "nothing stored yet" from real failures with `IsNotFound`.
-- Read and write `env.enc` for the dotfiles provider.
-- Read and write OS keychain entries for the keyring provider.
-- Read mounted Docker secrets (saving is unsupported).
-- Validate provider availability with optional `Check()` methods.
-- Select the correct provider from the manifest's `project.provider`.
+| Source file | Documentation | Responsibility |
+| :--- | :--- | :--- |
+| `internal/provider/provider.go` | [`provider.md`](provider.md) | Interface, `ErrNotFound`, `IsNotFound` |
+| `internal/provider/registry.go` | [`registry.md`](registry.md) | Provider metadata, factory, `GetStorageProvider` |
+| `internal/provider/dotfiles.go` | [`dotfiles.md`](dotfiles.md) | Local encrypted file backend |
+| `internal/provider/keyring.go` | [`keyring.md`](keyring.md) | OS keyring backend |
+| `internal/provider/docker.go` | [`docker.md`](docker.md) | Mounted Docker secret backend (read-only) |
+| `internal/provider/env.go` | [`env.md`](env.md) | Base64 environment variable backend (read-only) |
+| `internal/provider/s3.go` | [`s3.md`](s3.md) | S3-compatible object storage backend |
+| `internal/provider/env_test.go` | [`env_test.md`](env_test.md) | Tests for the environment provider |
+| `internal/provider/registry_test.go` | [`registry_test.md`](registry_test.md) | Tests for the provider registry |
+| `internal/provider/s3_test.go` | [`s3_test.md`](s3_test.md) | Tests for the S3 provider |
 
-## Key interface
+## Core interface
 
 ```go
 type StorageProvider interface {
@@ -26,114 +32,91 @@ type StorageProvider interface {
 }
 ```
 
-Providers move opaque bytes only. Encryption and decryption happen in the crypto
-module, so providers never see plaintext (except Docker, whose input is already
-an encrypted payload produced by the same pipeline).
-
-## `IsNotFound`
+`Save` and `Load` receive already-encrypted bytes. The interface deliberately
+stays minimal so a backend only has to move bytes. Backends that can validate
+availability expose an additional `Check() error` method, which callers use
+through a type assertion:
 
 ```go
+if checker, ok := storage.(interface{ Check() error }); ok {
+    err := checker.Check()
+}
+```
+
+`Check` is not part of `StorageProvider`; adding it would force every backend
+(including future ones) to implement validation logic it may not need.
+
+## Not-found handling
+
+```go
+var ErrNotFound = errors.New("secret not found")
+
 func IsNotFound(err error) bool {
-    return errors.Is(err, os.ErrNotExist) || errors.Is(err, keyring.ErrKeyNotFound)
+    return errors.Is(err, ErrNotFound) ||
+        errors.Is(err, os.ErrNotExist) ||
+        errors.Is(err, keyring.ErrKeyNotFound)
 }
 ```
 
-Commands use this to treat a missing store as a normal first-run condition. A
-corrupt store, permission error, or decrypt failure is not "not found".
+`IsNotFound` lets commands treat "nothing has been stored yet" as a normal
+first-run condition. A corrupt payload, permission error, or decryption failure
+is not "not found".
 
-## `DotfilesProvider`
+## Registered providers
 
-```go
-type DotfilesProvider struct {
-    FilePath string
-}
+| Name | Read-only | Backing store | Selected by `init` |
+| :--- | :--- | :--- | :--- |
+| `dotfiles` | no | Configured `EncFile` (default `env.enc`) | yes (default) |
+| `keyring` | no | OS credential store | yes |
+| `docker` | yes | `/run/secrets/<name>` (or OS equivalent) | no |
+| `env` | yes | `SECWAN_ENV_ENC` environment variable | no |
+| `s3` | no | One object in an S3-compatible bucket | no |
+
+`init` still offers only `dotfiles` and `keyring`. The other providers are chosen
+by editing `project.provider` in `secret-wan.toml`.
+
+## Selection flow
+
+```text
+manifest project.provider
+        │
+        ▼
+provider.GetStorageProvider(appConfig, name, projectName)
+        │
+        ├─ known name ──► registry factory ──► concrete provider
+        │
+        └─ unknown name ─► DotfilesProvider (backward-compatible fallback)
 ```
 
-| Method | Behavior |
-| :--- | :--- |
-| `Save` | `os.WriteFile(path, data, 0644)` |
-| `Load` | `os.ReadFile(path)` |
-| `Check` | Stat the file; error if missing, a directory, or empty |
-
-The path is normally `env.enc` from `AppConfig.EncFile`. The ciphertext is safe
-to commit, although the file mode is world-readable.
-
-## `KeyringProvider`
-
-```go
-type KeyringProvider struct {
-    ServiceName string
-    Key         string
-}
-```
-
-| Method | Behavior |
-| :--- | :--- |
-| `Save` | Opens the keyring with the service name, then `Set(keyring.Item{Key, Data})` |
-| `Load` | Opens the keyring, fetches the item by key, returns `item.Data` |
-| `Check` | Attempts to open the keyring backend |
-
-The provider factory sets `ServiceName` to `secret-wan` and `Key` to the project
-name. On Linux, a Secret Service daemon (GNOME Keyring, KeePassXC, etc.) and
-`libsecret` are required; otherwise `keyring.Open` fails.
-
-## `DockerSecretProvider`
-
-```go
-type DockerSecretProvider struct {
-    SecretName string
-}
-```
-
-| Method | Behavior |
-| :--- | :--- |
-| `Save` | Always returns `saving to docker secret is not supported directly` |
-| `Load` | Reads `<DockerSecretsDir>/<SecretName>`, trims surrounding whitespace, returns bytes |
-| `Check` | Stat the file; error if missing or a directory |
-
-Docker secrets are mounted read-only, so they are a consumption-only provider.
-The stored content is expected to be an age-encrypted JSON payload (for example,
-a secret created elsewhere and mounted into the container).
-
-## `GetStorageProvider`
-
-```go
-func GetStorageProvider(appConfig config.AppConfig, providerName string, projectName string) StorageProvider
-```
-
-| `providerName` | Result |
-| :--- | :--- |
-| `"keyring"` | `KeyringProvider{ServiceName: "secret-wan", Key: projectName}` |
-| `"docker"` | `DockerSecretProvider{SecretName: projectName}` |
-| anything else (including `""`) | `DotfilesProvider{FilePath: appConfig.EncFile}` |
-
-The default branch makes an omitted provider behave like `dotfiles`. Unknown
-provider names also fall back here; `check --strict` and `doctor` are responsible
-for flagging them.
+`check --strict` and `doctor` consult the registry instead of hardcoding names,
+so they report the same set of providers the factory understands. Unknown names
+are flagged there rather than silently falling back.
 
 ## Dependencies
 
-- `github.com/99designs/keyring`.
-- `internal/config` for the encrypted file path.
-- `internal/osutil` for the Docker secrets directory.
+- `github.com/99designs/keyring` for OS credential storage.
+- `github.com/aws/aws-sdk-go-v2` (config, S3, smithy-go) for the S3 provider.
+- [`internal/config`](../config/config.md) for the encrypted file path.
+- [`internal/osutil`](../osutil/os.md) for the Docker secrets directory.
 
 ## Edge cases and notes
 
 - Providers do not validate that the payload is valid age data; decryption
   reports that.
-- `DotfilesProvider.Save` uses `0644`. Use filesystem permissions or repository
-  policy if stricter access is required.
-- `DockerSecretProvider.Load` trims whitespace, which can matter if the mounted
-  file has a trailing newline.
-- `Check` is not part of the `StorageProvider` interface; callers use a type
-  assertion (`interface{ Check() error }`) so the interface stays minimal.
-- The keyring service name is hardcoded in the factory rather than taken from
-  `AppConfig.AppName`.
-- Docker secrets cannot be listed or created by this tool.
+- `DotfilesProvider.Save` uses `0644`; use filesystem policy if stricter access
+  is required.
+- The `env` and `docker` providers cannot save. Commands that write secrets fail
+  with an actionable message when they are selected.
+- The S3 provider reads all of its configuration from `SECWAN_S3_*` environment
+  variables; nothing bucket-related is written to the manifest.
+- `GetStorageProvider` still falls back to `dotfiles` for unknown names to keep
+  existing manifests working. Validation lives in `check` and `doctor`.
 
 ## Related files
 
-- [`internal/crypto/crypto.md`](../crypto/crypto.md) — encrypts before `Save`,
+- [`internal/app/service.md`](../app/service.md) — owns the selected provider.
+- [`cmd/doctor_checks.md`](../../cmd/doctor_checks.md) — calls `Check` and reports
+  read-only mode.
+- [`cmd/check.md`](../../cmd/check.md) — validates provider names in strict mode.
+- [`internal/crypto/crypto.md`](../crypto/crypto.md) — encrypts before `Save` and
   decrypts after `Load`.
-- [`cmd/doctor.md`](../../cmd/doctor.md) — uses `Check` and `IsNotFound`.
-- [`internal/osutil/os.md`](../osutil/os.md) — Docker secrets directory.

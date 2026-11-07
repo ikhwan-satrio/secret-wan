@@ -24,11 +24,11 @@ into the environment of a child process without writing them to shell history.
 1. `cobra.MinimumNArgs(1)` ensures a command is present.
 2. The profile defaults to `default`.
 3. The master key is loaded or generated.
-4. The manifest is parsed; an unknown profile prints the available profiles and
+4. The project is loaded; an unknown profile prints the available profiles and
    exits.
-5. Secrets are loaded. A missing store suggests
-   `secwan sync -p <profile>`; other errors report decryption failure.
-6. The allowed key set is the union of the profile's `Required` and `AutoGen`
+5. Secrets are loaded through the service. A missing store reports a setup error;
+   other errors report decryption failure.
+6. The allowed key set is `Profile.Keys()`, the union of required and generated
    keys.
 7. Only stored keys in that set are copied into `filteredSecrets`.
 8. `os.Setenv` writes each value into the current process.
@@ -43,12 +43,15 @@ into the environment of a child process without writing them to shell history.
 
 ```go
 allowedKeys := make(map[string]bool)
-for _, k := range targetProfile.Required { allowedKeys[k] = true }
-for _, k := range targetProfile.AutoGen  { allowedKeys[k] = true }
+for _, key := range targetProfile.Keys() {
+    allowedKeys[key] = true
+}
 
 filteredSecrets := make(map[string]string)
-for k, v := range secrets {
-    if allowedKeys[k] { filteredSecrets[k] = v }
+for key, value := range secrets {
+    if allowedKeys[key] {
+        filteredSecrets[key] = value
+    }
 }
 ```
 
@@ -74,8 +77,10 @@ explicit.
 
 ## Dependencies
 
-- `internal/config`, `internal/crypto`, `internal/manifest`,
-  `internal/provider`, `internal/ui`.
+- `internal/ui`.
+- Shared session helpers: `newSession`, `requireIdentity`, `requireProject`,
+  `requireProfile`, and `LoadSecrets`.
+- [`../internal/manifest/profile.md`](../internal/manifest/profile.md) — key set.
 - `os/exec` for the child process.
 - `github.com/spf13/cobra` for argument validation and the `--profile` flag.
 
@@ -97,6 +102,6 @@ explicit.
 
 ## Related files
 
-- [`cmd/printEnv.md`](printEnv.md) — exports values instead of running a child.
-- [`cmd/set.md`](set.md) — create values before running.
-- [`internal/provider/provider.md`](../internal/provider/provider.md)
+- [`printEnv.md`](printEnv.md) — exports values instead of running a child.
+- [`set.md`](set.md) — create values before running.
+- [`../internal/provider/provider.md`](../internal/provider/provider.md)

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
@@ -23,14 +22,14 @@ var listCmd = &cobra.Command{
 		all, _ := cmd.Flags().GetBool("all")
 
 		session := newSession()
-		session.requireManifest()
+		session.requireProject()
 		profile := session.requireProfile(profileName)
 		session.requireExistingIdentity()
 		stored := session.requireSecrets()
 
-		keys := profileKeys(profile)
+		keys := profile.Keys()
 		if all {
-			keys = allKeys(profile, stored)
+			keys = profile.AllKeys(stored)
 		}
 
 		printHeader("list")
@@ -71,37 +70,15 @@ var listCmd = &cobra.Command{
 	},
 }
 
-func allKeys(profile *manifest.Profile, stored map[string]string) []string {
-	set := make(map[string]bool, len(stored)+len(profile.Required)+len(profile.AutoGen))
-
-	for _, key := range profile.Required {
-		set[key] = true
-	}
-	for _, key := range profile.AutoGen {
-		set[key] = true
-	}
-	for key := range stored {
-		set[key] = true
-	}
-
-	keys := make([]string, 0, len(set))
-	for key := range set {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	return keys
-}
-
 func secretType(parsed *manifest.Manifest, profile *manifest.Profile, key string) string {
-	if !keyInProfile(profile, key) {
-		if len(profilesContaining(parsed, key)) > 0 {
+	if !profile.HasKey(key) {
+		if len(parsed.ProfilesContaining(key)) > 0 {
 			return "other"
 		}
 		return "unmanaged"
 	}
 
-	rule := ruleFor(profile, key)
+	rule := profile.Rule(key)
 	switch {
 	case rule.Required && rule.Generate:
 		return "gen+req"

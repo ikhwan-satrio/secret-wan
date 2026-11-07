@@ -33,10 +33,11 @@ across runs and easier to test.
 
 ## Used by
 
-- `cmd/shared.go` — invalid profile errors.
+- `internal/app/project.go` — builds the "Available profiles" detail for an
+  invalid profile.
+- `cmd/doctor_checks.go` — manifest summary and profile checks.
 - `cmd/check.go` — strict checks iterate profiles in sorted order.
-- `cmd/doctor.go` — manifest summary and profile checks.
-- `cmd/sync.go` and `cmd/exec.go` — unknown-profile messages.
+- `cmd/sync.go` and `cmd/exec.go` — unknown-profile messages via the service.
 
 ## Dependencies
 
@@ -51,4 +52,5 @@ across runs and easier to test.
 ## Related files
 
 - [`internal/manifest/parser.md`](parser.md) — produces the map.
-- [`cmd/shared.md`](../../cmd/shared.md) — consumes the names in error messages.
+- [`internal/manifest/profile.md`](profile.md) — profile and manifest queries.
+- [`cmd/session.md`](../../cmd/session.md) — profile lookup that uses the names.

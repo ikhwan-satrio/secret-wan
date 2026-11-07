@@ -19,11 +19,11 @@ profile in a table, with values masked unless `--reveal` is used.
 ## Execution flow
 
 1. `cobra.NoArgs` rejects positional arguments.
-2. Build a session, parse the manifest, resolve the profile.
+2. Build a session, load the project, resolve the profile.
 3. Require an existing identity and load secrets.
 4. Choose keys:
-   - `profileKeys(profile)` by default
-   - `allKeys(profile, stored)` with `--all`
+   - `profile.Keys()` by default
+   - `profile.AllKeys(stored)` with `--all`
 5. Print a header and optional "all stored secrets" note.
 6. If there are no keys, print "No secrets defined for this profile." and
    return.
@@ -40,10 +40,11 @@ const maskedValue = "••••••••"
 
 The same constant is used by `get`, so masked output is consistent.
 
-### `allKeys`
+### `Profile.AllKeys`
 
 Computes the union of the profile's required keys, generated keys, and every
-stored key, then sorts the result. This is used by `--all`.
+stored key, then sorts the result. This is used by `--all` and lives in
+[`internal/manifest/profile.md`](../internal/manifest/profile.md).
 
 ### `secretType`
 
@@ -76,9 +77,10 @@ and avoids breaking terminal layout.
 
 - `internal/manifest` for profile types.
 - `internal/ui` for styling.
-- Shared helpers: `newSession`, `requireManifest`, `requireProfile`,
-  `requireExistingIdentity`, `requireSecrets`, `profileKeys`, `keyInProfile`,
-  `ruleFor`, `profilesContaining`.
+- Shared session helpers: `newSession`, `requireProject`, `requireProfile`,
+  `requireExistingIdentity`, `requireSecrets`.
+- [`internal/manifest/profile.md`](../internal/manifest/profile.md) — `Keys`,
+  `AllKeys`, `HasKey`, `Rule`.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes
@@ -90,7 +92,7 @@ and avoids breaking terminal layout.
   detection.
 - Column widths are fixed (`28` for key, `12` for type) for simple alignment;
   long keys are not truncated.
-- The union in `allKeys` is sorted for deterministic output.
+- The union in `Profile.AllKeys` is sorted for deterministic output.
 - `list --reveal` can expose all secrets on screen; use it carefully.
 
 ## Related files

@@ -19,7 +19,7 @@ var getCmd = &cobra.Command{
 		reveal, _ := cmd.Flags().GetBool("reveal")
 
 		session := newSession()
-		session.requireManifest()
+		session.requireProject()
 		profile := session.requireProfile(profileName)
 		session.requireExistingIdentity()
 		stored := session.requireSecrets()
@@ -29,9 +29,9 @@ var getCmd = &cobra.Command{
 			fail("Secret not found", fmt.Sprintf("%s is not stored. Run 'secwan set %s' to create it.", key, key))
 		}
 
-		if !keyInProfile(profile, key) {
+		if !profile.HasKey(key) {
 			detail := fmt.Sprintf("%s is not declared in profile '%s'.", key, profile.Name)
-			if others := profilesContaining(session.Manifest, key); len(others) > 0 {
+			if others := session.Manifest.ProfilesContaining(key); len(others) > 0 {
 				detail = fmt.Sprintf("%s is declared in profile(s) %s, not '%s'.", key, strings.Join(others, ", "), profile.Name)
 			}
 			fmt.Fprintf(os.Stderr, "%s %s\n", ui.IconWarning, ui.Warning.Render(detail))

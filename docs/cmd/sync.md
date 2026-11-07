@@ -27,25 +27,24 @@ keys, merges the results into existing storage, and saves the encrypted result.
 ```text
 sync
  ├── read --profile (default: "default")
- ├── LoadOrGenerateKey
- ├── ParseManifest
- ├── require profile
- ├── GetStorageProvider
- ├── LoadSecrets
- │     ├── success  → reuse map (preserves other profiles)
- │     ├── not found → empty map (first sync)
+ ├── session.requireIdentity (LoadOrGenerateKey)
+ ├── session.requireProject (ParseManifest + provider)
+ ├── session.requireProfile
+ ├── LoadSecretsAllowMissing
+ │     ├── success   → reuse map (preserves other profiles)
+ │     ├── not found → empty map (first sync), silent
  │     └── other     → fail
  ├── for each AutoGen key:
  │     ├── existing non-empty → print "kept"
- │     └── otherwise         → GenerateSecurePassword, print "generated"
- ├── requiredKeysForPrompt(profile) → Bubble Tea input model
+ │     └── otherwise         → GenerateSecret, print "generated"
+ ├── Profile.PromptKeys() → Bubble Tea input model
  │     ├── cancelled → return without saving
  │     └── completed → copy choices into map
  └── if changed
-      ├── encryptionRecipients(appConfig, identity, false)
+      ├── session.saveSecrets(stored, false)
       │     ├── no recipient file → current key
-      │     └── current key absent → fail
-      └── SaveSecrets(storage, stored, recipients...)
+      │     └── current key absent → UserError
+      └── success message with recipient count
      else → "No changes to save."
 ```
 
@@ -70,8 +69,8 @@ user explicitly sets a new value.
 
 ### Prompt selection
 
-`requiredKeysForPrompt(profile)` excludes keys that are also generated. This
-prevents a key declared with both rules from being generated and prompted.
+`Profile.PromptKeys()` excludes keys that are also generated. This prevents a key
+declared with both rules from being generated and prompted.
 
 ### Save condition
 
@@ -81,17 +80,12 @@ least one choice. If nothing changed, the storage is not rewritten.
 ### Recipient resolution
 
 ```go
-recips, err := encryptionRecipients(appConfig, identity, false)
-if err != nil {
-    // fail
-}
-err = cryptoModule.SaveSecrets(storage, stored, recips...)
+recipientCount := session.saveSecrets(stored, false)
 ```
 
-`sync` uses the package-level helper because it does not build an `appSession`.
-The helper reads `secret-wan.recipients`, falls back to the current key when the
-file is absent, and rejects a non-empty list that does not contain the current
-key.
+`session.saveSecrets` calls `app.Service.SaveSecrets`, which reads
+`secret-wan.recipients`, falls back to the current key when the file is absent,
+and rejects a non-empty list that does not contain the current key.
 
 The success message includes the recipient count:
 
@@ -101,9 +95,13 @@ The success message includes the recipient count:
 
 ## Dependencies
 
-- `internal/config`, `internal/crypto`, `internal/manifest`,
-  `internal/provider`, `internal/tui`, `internal/ui`.
-- Shared helper `encryptionRecipients` from `cmd/shared.go`.
+- `internal/tui`, `internal/ui`.
+- Shared session helpers: `newSession`, `requireIdentity`, `requireProject`,
+  `requireProfile`, `saveSecrets`.
+- [`../internal/app/secrets.md`](../internal/app/secrets.md) — missing-store,
+  generation, and recipient policy.
+- [`../internal/manifest/profile.md`](../internal/manifest/profile.md) —
+  `PromptKeys`.
 - `github.com/charmbracelet/bubbletea` for the input wizard.
 - `github.com/spf13/cobra` for the command and `--profile` flag.
 
@@ -133,10 +131,9 @@ The success message includes the recipient count:
 
 ## Related files
 
-- [`cmd/shared.md`](shared.md) — `requiredKeysForPrompt`, `encryptionRecipients`,
-  and session helpers.
-- [`internal/tui/base.md`](../internal/tui/base.md) — the input wizard.
-- [`internal/crypto/crypto.md`](../internal/crypto/crypto.md) — generation and save.
-- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md) —
-  recipient list semantics.
-- [`cmd/set.md`](set.md) — non-interactive single-key alternative.
+- [`session.md`](session.md) — session helpers.
+- [`../internal/tui/base.md`](../internal/tui/base.md) — the input wizard.
+- [`../internal/crypto/password.md`](../internal/crypto/password.md) — generation.
+- [`../internal/crypto/secrets.md`](../internal/crypto/secrets.md) — saving.
+- [`../internal/app/secrets.md`](../internal/app/secrets.md) — service policy.
+- [`set.md`](set.md) — non-interactive single-key alternative.

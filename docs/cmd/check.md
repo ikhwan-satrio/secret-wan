@@ -20,7 +20,7 @@ manifest/storage inconsistencies.
 ## Execution flow
 
 1. Read `--profile` and `--strict` flags.
-2. Build a session, parse the manifest, and resolve the profile.
+2. Build a session, load the project, and resolve the profile.
 3. If the profile has no keys, fail with "Profile '<name>' must define at least
    one secret".
 4. Require an existing master key and load secrets.
@@ -51,7 +51,7 @@ The label is the key or manifest field; the detail explains the problem.
 | Condition | Label | Detail |
 | :--- | :--- | :--- |
 | Empty project name | `project.name` | `project name is empty` |
-| Unknown provider | `project.provider` | expected `dotfiles`, `keyring`, or `docker` |
+| Unknown provider | `project.provider` | `unknown provider '<name>' (expected docker, dotfiles, env, keyring, s3)` |
 | Stored key not declared in any profile | key | `stored but not declared in any profile` |
 | Profile with no keys | profile name | `profile has no secrets defined` |
 | Declared key with no rule | key | `profile '<name>' has no rule (use required or generate)` |
@@ -59,8 +59,10 @@ The label is the key or manifest field; the detail explains the problem.
 
 Notes:
 
-- An empty provider string is accepted because the provider factory defaults to
+- An empty provider string is accepted because the provider registry defaults to
   `dotfiles`.
+- The accepted provider names come from `provider.Names()`, so the message stays
+  correct as backends are added.
 - Unmanaged keys are sorted before being reported.
 - The same key can produce issues in multiple profiles.
 - Strict issues are reported after the normal per-key status table.
@@ -79,9 +81,14 @@ The command exits `1` if either the normal check or the strict check failed.
 
 ## Dependencies
 
-- `internal/manifest`, `internal/ui`.
-- Shared helpers from [`cmd/shared.md`](shared.md): `newSession`,
-  `profileKeys`, `allDeclaredKeys`, `ruleFor`, `requireSecrets`, etc.
+- `internal/manifest`, `internal/provider`, `internal/ui`.
+- Shared session helpers from [`cmd/session.md`](session.md): `newSession`,
+  `requireProject`, `requireProfile`, `requireExistingIdentity`,
+  `requireSecrets`.
+- [`internal/manifest/profile.md`](../internal/manifest/profile.md) — `Keys`,
+  `Rule`, `DeclaredKeys`.
+- [`internal/provider/registry.md`](../internal/provider/registry.md) —
+  `IsKnown` and `Names`.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes
@@ -101,3 +108,5 @@ The command exits `1` if either the normal check or the strict check failed.
 - [`cmd/shared_test.md`](shared_test.md) — tests for strict issue collection.
 - [`internal/manifest/parser.md`](../internal/manifest/parser.md) — `Declared` and
   `Rules` metadata.
+- [`internal/manifest/profile.md`](../internal/manifest/profile.md) — manifest
+  query methods used by the checks.

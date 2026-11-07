@@ -27,13 +27,13 @@ Use --json for a structured JSON object instead.`,
 		asJSON, _ := cmd.Flags().GetBool("json")
 
 		session := newSession()
-		session.requireManifest()
+		session.requireProject()
 		profile := session.requireProfile(profileName)
 		session.requireExistingIdentity()
 		stored := session.requireSecrets()
 
 		active := make(map[string]string)
-		for _, key := range profileKeys(profile) {
+		for _, key := range profile.Keys() {
 			if value, exists := stored[key]; exists {
 				active[key] = value
 			}

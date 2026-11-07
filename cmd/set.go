@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ikhwan-satrio/secret-wan/internal/secrets"
@@ -33,12 +32,12 @@ Use --generate to create a cryptographically secure random value instead.`,
 		}
 
 		session := newSession()
-		session.requireManifest()
+		session.requireProject()
 		profile := session.requireProfile(profileName)
 		session.requireIdentity()
 
-		if !keyInProfile(profile, key) {
-			declaredIn := profilesContaining(session.Manifest, key)
+		if !profile.HasKey(key) {
+			declaredIn := session.Manifest.ProfilesContaining(key)
 			detail := fmt.Sprintf("%s is not declared in profile '%s'. Add it to %s.", key, profile.Name, session.Config.SpecFile)
 			if len(declaredIn) > 0 {
 				detail = fmt.Sprintf("%s is declared in profile(s) %s, not '%s'.", key, strings.Join(declaredIn, ", "), profile.Name)
@@ -47,7 +46,7 @@ Use --generate to create a cryptographically secure random value instead.`,
 				fail("Key not declared", detail+" Use --force to store it anyway.")
 			}
 
-			fmt.Fprintf(os.Stderr, "%s %s\n", ui.IconWarning, ui.Warning.Render(detail))
+			warn(detail)
 		}
 
 		printHeader("set")
@@ -67,9 +66,7 @@ Use --generate to create a cryptographically secure random value instead.`,
 		_, existed := stored[key]
 		stored[key] = value
 
-		if err := session.saveSecrets(stored, false); err != nil {
-			failErr("Failed to save secrets", err)
-		}
+		session.saveSecrets(stored, false)
 
 		action := "saved"
 		if existed {
@@ -84,9 +81,9 @@ Use --generate to create a cryptographically secure random value instead.`,
 	},
 }
 
-func resolveSecretValue(session *appSession, key string, args []string, generate bool) (string, error) {
+func resolveSecretValue(session *cliSession, key string, args []string, generate bool) (string, error) {
 	if generate {
-		return session.Crypto.GenerateSecurePassword(session.Config.SecretLength)
+		return session.GenerateSecret()
 	}
 
 	if len(args) == 2 {

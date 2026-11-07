@@ -20,7 +20,7 @@ from the stored secret map and saves the result.
 
 1. `cobra.ExactArgs(1)` validates the argument count.
 2. Trim the key; fail if empty.
-3. Build a session, parse the manifest, and require an existing identity.
+3. Build a session, load the project, and require an existing identity.
 4. Load secrets with `requireSecrets`.
 5. If the key is absent, fail with "Secret not found".
 6. Print the header.
@@ -40,11 +40,10 @@ removing a key removes it for every profile that references it. This is why the
 command warns when the key is still declared:
 
 ```go
-declaredIn := profilesContaining(session.Manifest, key)
+declaredIn := session.Manifest.ProfilesContaining(key)
 if len(declaredIn) > 0 {
-    fmt.Fprintf(os.Stderr, "%s %s\n", ui.IconWarning,
-        ui.Warning.Render(fmt.Sprintf("%s is still declared in profile(s) %s.",
-            key, strings.Join(declaredIn, ", "))))
+    warn(fmt.Sprintf("%s is still declared in profile(s) %s.",
+        key, strings.Join(declaredIn, ", ")))
 }
 ```
 
@@ -58,9 +57,10 @@ step after confirming the key existed, so a save is always meaningful.
 ## Dependencies
 
 - `internal/ui` for output.
-- Shared helpers: `newSession`, `requireManifest`, `requireExistingIdentity`,
-  `requireSecrets`, `profilesContaining`, `saveSecrets`.
-- `internal/recipients` indirectly, through the shared save path.
+- Shared session helpers: `newSession`, `requireProject`,
+  `requireExistingIdentity`, `requireSecrets`, `saveSecrets`, and `warn`.
+- [`internal/manifest/profile.md`](../internal/manifest/profile.md) —
+  `ProfilesContaining`.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes
@@ -82,6 +82,8 @@ step after confirming the key existed, so a save is always meaningful.
 
 - [`cmd/set.md`](set.md) — create or update values.
 - [`cmd/check.md`](check.md) — reports keys that are still declared but missing.
-- [`cmd/shared.md`](shared.md) — `profilesContaining` and `saveSecrets`.
+- [`cmd/shared.md`](shared.md) — warning and error helpers.
+- [`internal/manifest/profile.md`](../internal/manifest/profile.md) —
+  `ProfilesContaining`.
 - [`internal/recipients/recipients.md`](../internal/recipients/recipients.md) —
   recipient list semantics.

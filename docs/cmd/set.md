@@ -27,9 +27,9 @@ without echo, or generate it.
 1. Trim the key; fail if empty.
 2. Read `--profile`, `--generate`, and `--force`.
 3. If both a positional value and `--generate` are present, fail.
-4. Build a session, parse the manifest, resolve the profile.
+4. Build a session, load the project, resolve the profile.
 5. `requireIdentity` loads or creates the master key.
-6. Check `keyInProfile`:
+6. Check `profile.HasKey`:
    - declared → continue
    - not declared and no `--force` → fail with guidance
    - not declared and `--force` → print a warning to stderr and continue
@@ -46,9 +46,9 @@ without echo, or generate it.
 ### `resolveSecretValue`
 
 ```go
-func resolveSecretValue(session *appSession, key string, args []string, generate bool) (string, error) {
+func resolveSecretValue(session *cliSession, key string, args []string, generate bool) (string, error) {
     if generate {
-        return session.Crypto.GenerateSecurePassword(session.Config.SecretLength)
+        return session.GenerateSecret()
     }
     if len(args) == 2 {
         return args[1], nil
@@ -72,19 +72,19 @@ silently choosing one source.
 ### First write
 
 `loadSecretsAllowMissing` returns an empty map when no storage exists, allowing
-`set` to create `env.enc` (or the keyring entry) without requiring `sync` first.
+`set` to create the configured encrypted file (default `env.enc`) or the keyring
+entry without requiring `sync` first.
 
 ### Recipient handling
 
 ```go
-if err := session.saveSecrets(stored, false); err != nil {
-    failErr("Failed to save secrets", err)
-}
+session.saveSecrets(stored, false)
 ```
 
-`saveSecrets` loads `secret-wan.recipients`. A missing file means the current key
-is the only recipient. A non-empty list without the current key is an error, so
-`set` cannot silently write a payload that the current user cannot read.
+`saveSecrets` calls the service's `SaveSecrets`, which loads
+`secret-wan.recipients`. A missing file means the current key is the only
+recipient. A non-empty list without the current key is an error, so `set` cannot
+silently write a payload that the current user cannot read.
 
 ### Empty values
 
@@ -101,10 +101,11 @@ This keeps "missing" and "empty" from becoming two different states.
 
 - `internal/secrets` for terminal/piped input.
 - `internal/ui` for output and warnings.
-- Shared helpers: `newSession`, `requireManifest`, `requireProfile`,
-  `requireIdentity`, `loadSecretsAllowMissing`, `keyInProfile`,
-  `profilesContaining`, `saveSecrets`.
-- `internal/recipients` indirectly, through the shared save path.
+- Shared session helpers: `newSession`, `requireProject`, `requireProfile`,
+  `requireIdentity`, `loadSecretsAllowMissing`, `saveSecrets`.
+- [`../internal/manifest/profile.md`](../internal/manifest/profile.md) — `HasKey`.
+- [`../internal/app/secrets.md`](../internal/app/secrets.md) — save and
+  generation policy.
 - `github.com/spf13/cobra`.
 
 ## Edge cases and notes
@@ -132,10 +133,11 @@ This keeps "missing" and "empty" from becoming two different states.
 
 ## Related files
 
-- [`cmd/unset.md`](unset.md) — removal counterpart.
-- [`internal/secrets/secrets.md`](../internal/secrets/secrets.md) — prompt behavior.
-- [`internal/crypto/crypto.md`](../internal/crypto/crypto.md) — generation and save.
-- [`internal/recipients/recipients.md`](../internal/recipients/recipients.md) —
-  recipient list semantics.
-- [`cmd/recipient.md`](recipient.md) — adding the current key back to the list.
-- [`cmd/sync.md`](sync.md) — bulk interactive workflow.
+- [`unset.md`](unset.md) — removal counterpart.
+- [`../internal/secrets/secrets.md`](../internal/secrets/secrets.md) — prompt
+  behavior.
+- [`../internal/crypto/password.md`](../internal/crypto/password.md) — generation.
+- [`../internal/crypto/secrets.md`](../internal/crypto/secrets.md) — saving.
+- [`../internal/app/secrets.md`](../internal/app/secrets.md) — service policy.
+- [`recipient.md`](recipient.md) — adding the current key back to the list.
+- [`sync.md`](sync.md) — bulk interactive workflow.
