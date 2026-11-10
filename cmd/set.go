@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/secrets"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
@@ -20,7 +21,7 @@ Use --generate to create a cryptographically secure random value instead.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		key := strings.TrimSpace(args[0])
 		if key == "" {
-			fail("Invalid key", "Key must not be empty.")
+			cli.Fail("Invalid key", "Key must not be empty.")
 		}
 
 		profileName, _ := cmd.Flags().GetString("profile")
@@ -28,13 +29,13 @@ Use --generate to create a cryptographically secure random value instead.`,
 		force, _ := cmd.Flags().GetBool("force")
 
 		if len(args) == 2 && generate {
-			fail("Conflicting options", "Provide either VALUE or --generate, not both.")
+			cli.Fail("Conflicting options", "Provide either VALUE or --generate, not both.")
 		}
 
-		session := newSession()
-		session.requireProject()
-		profile := session.requireProfile(profileName)
-		session.requireIdentity()
+		session := cli.NewSession()
+		session.RequireProject()
+		profile := session.RequireProfile(profileName)
+		session.RequireIdentity()
 
 		if !profile.HasKey(key) {
 			declaredIn := session.Manifest.ProfilesContaining(key)
@@ -43,30 +44,33 @@ Use --generate to create a cryptographically secure random value instead.`,
 				detail = fmt.Sprintf("%s is declared in profile(s) %s, not '%s'.", key, strings.Join(declaredIn, ", "), profile.Name)
 			}
 			if !force {
-				fail("Key not declared", detail+" Use --force to store it anyway.")
+				cli.Fail("Key not declared", detail+" Use --force to store it anyway.")
 			}
 
-			warn(detail)
+			cli.Warn(detail)
 		}
 
-		printHeader("set")
+		cli.PrintHeader("set")
 		fmt.Println(ui.Muted.Render("Profile: ") + ui.Accent.Render(profile.Name))
 		fmt.Println()
 
-		stored := session.loadSecretsAllowMissing()
+		stored, missing := session.LoadSecretsAllowMissing()
+		if missing {
+			cli.Warn("No existing secrets found; a new storage will be created.")
+		}
 
 		value, err := resolveSecretValue(session, key, args, generate)
 		if err != nil {
-			failErr("Failed to read secret value", err)
+			cli.FailErr("Failed to read secret value", err)
 		}
 		if value == "" {
-			fail("Empty secret value", "Use 'secwan unset "+key+"' to remove a secret instead.")
+			cli.Fail("Empty secret value", "Use 'secwan unset "+key+"' to remove a secret instead.")
 		}
 
 		_, existed := stored[key]
 		stored[key] = value
 
-		session.saveSecrets(stored, false)
+		session.SaveSecrets(stored, false)
 
 		action := "saved"
 		if existed {
@@ -81,7 +85,7 @@ Use --generate to create a cryptographically secure random value instead.`,
 	},
 }
 
-func resolveSecretValue(session *cliSession, key string, args []string, generate bool) (string, error) {
+func resolveSecretValue(session *cli.Session, key string, args []string, generate bool) (string, error) {
 	if generate {
 		return session.GenerateSecret()
 	}

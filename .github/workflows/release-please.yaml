@@ -35,3 +35,13 @@ jobs:
     uses: ./.github/workflows/release-build.yaml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
+
+  nix-update:
+    name: Update Nix flake
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/nix-update.yaml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}

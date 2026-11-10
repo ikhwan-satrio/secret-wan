@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/tui"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
@@ -14,7 +15,7 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize master key and config template",
 	Run: func(cmd *cobra.Command, args []string) {
-		session := newSession()
+		session := cli.NewSession()
 
 		fmt.Println(ui.Title.Render("secret-wan") + ui.Muted.Render("  •  initialize"))
 		fmt.Println(ui.Divider(44))
@@ -27,7 +28,7 @@ var initCmd = &cobra.Command{
 
 		finalModel, err := p.Run()
 		if err != nil {
-			failErr("TUI crashed", err)
+			cli.FailErr("TUI crashed", err)
 		}
 
 		selModel := finalModel.(tui.SelectModel)
@@ -41,11 +42,11 @@ var initCmd = &cobra.Command{
 			providerName = "keyring"
 		}
 
-		session.requireIdentity()
+		session.RequireIdentity()
 
 		created, err := session.CreateManifest(providerName)
 		if err != nil {
-			failErr("Failed to create config file", err)
+			cli.FailErr("Failed to create config file", err)
 		}
 
 		if !created {
@@ -59,7 +60,7 @@ var initCmd = &cobra.Command{
 			createdRecipients, recipientErr := session.CreateRecipientList()
 			switch {
 			case recipientErr != nil:
-				warn(fmt.Sprintf("Could not create %s: %v", session.Config.RecipientsPath(), recipientErr))
+				cli.Warn(fmt.Sprintf("Could not create %s: %v", session.Config.RecipientsPath(), recipientErr))
 			case createdRecipients:
 				fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render(fmt.Sprintf("Created recipient list %s", session.Config.RecipientsPath())))
 			}

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -26,11 +27,11 @@ Use --json for a structured JSON object instead.`,
 		profileName, _ := cmd.Flags().GetString("profile")
 		asJSON, _ := cmd.Flags().GetBool("json")
 
-		session := newSession()
-		session.requireProject()
-		profile := session.requireProfile(profileName)
-		session.requireExistingIdentity()
-		stored := session.requireSecrets()
+		session := cli.NewSession()
+		session.RequireProject()
+		profile := session.RequireProfile(profileName)
+		session.RequireExistingIdentity()
+		stored := session.RequireSecrets()
 
 		active := make(map[string]string)
 		for _, key := range profile.Keys() {
@@ -67,7 +68,7 @@ Use --json for a structured JSON object instead.`,
 			encoder.SetEscapeHTML(false)
 			encoder.SetIndent("", "  ")
 			if err := encoder.Encode(active); err != nil {
-				failErr("Failed to encode JSON", err)
+				cli.FailErr("Failed to encode JSON", err)
 			}
 			return
 		}

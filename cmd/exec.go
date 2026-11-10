@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -17,17 +18,17 @@ var execCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		profileName, err := cmd.Flags().GetString("profile")
 		if err != nil {
-			failErr("Failed to read profile flag", err)
+			cli.FailErr("Failed to read profile flag", err)
 		}
 
-		session := newSession()
-		session.requireIdentity()
-		session.requireProject()
-		targetProfile := session.requireProfile(profileName)
+		session := cli.NewSession()
+		session.RequireIdentity()
+		session.RequireProject()
+		targetProfile := session.RequireProfile(profileName)
 
 		secrets, err := session.LoadSecrets()
 		if err != nil {
-			failApp("Failed to decrypt secrets", err)
+			cli.FailApp("Failed to decrypt secrets", err)
 		}
 
 		allowedKeys := make(map[string]bool)
@@ -63,7 +64,7 @@ var execCmd = &cobra.Command{
 			if exitError, ok := err.(*exec.ExitError); ok {
 				os.Exit(exitError.ExitCode())
 			}
-			failErr("Failed to execute command", err)
+			cli.FailErr("Failed to execute command", err)
 		}
 	},
 }

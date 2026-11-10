@@ -1,22 +1,35 @@
-package cmd
+// Package recipient implements the recipient command family: listing the
+// project's age recipients, identifying the current key, and adding or removing
+// recipients with an automatic rekey.
+package recipient
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/ikhwan-satrio/secret-wan/internal/app"
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
 
-var recipientCmd = &cobra.Command{
-	Use:     "recipient",
-	Aliases: []string{"recipients"},
-	Short:   "Manage age recipients that can decrypt project secrets",
+// NewCommand builds the `recipient` command family.
+func NewCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "recipient",
+		Aliases: []string{"recipients"},
+		Short:   "Manage age recipients that can decrypt project secrets",
+	}
+
+	cmd.AddCommand(newListCommand())
+	cmd.AddCommand(newMeCommand())
+	cmd.AddCommand(newAddCommand())
+	cmd.AddCommand(newRemoveCommand())
+
+	return cmd
 }
 
-// printRekeyResult reports the outcome shared by recipient add/remove and the
-// standalone rekey command.
+// printRekeyResult reports the outcome shared by recipient add/remove.
 func printRekeyResult(result *app.RekeyResult) {
 	if result.Secrets == 0 {
 		fmt.Println(ui.Muted.Render("No stored secrets to re-encrypt yet."))
@@ -36,25 +49,15 @@ func failRecipientChange(err error) {
 	var changeErr *app.RecipientChangeError
 	if errors.As(err, &changeErr) {
 		if changeErr.Restored {
-			failErr("Failed to re-encrypt secrets; recipient list was restored", changeErr.Err)
+			cli.FailErr("Failed to re-encrypt secrets; recipient list was restored", changeErr.Err)
 		}
 
 		detail := changeErr.Err.Error()
 		if changeErr.RollbackErr != nil {
 			detail += "; rollback failed: " + changeErr.RollbackErr.Error()
 		}
-		fail("Failed to re-encrypt secrets and could not restore recipients", detail)
+		cli.Fail("Failed to re-encrypt secrets and could not restore recipients", detail)
 	}
 
-	failApp("Failed to update recipients", err)
-}
-
-func init() {
-	recipientRemoveCmd.Flags().Bool("force", false, "Allow removing your own key from the recipient list")
-
-	recipientCmd.AddCommand(recipientListCmd)
-	recipientCmd.AddCommand(recipientMeCmd)
-	recipientCmd.AddCommand(recipientAddCmd)
-	recipientCmd.AddCommand(recipientRemoveCmd)
-	rootCmd.AddCommand(recipientCmd)
+	cli.FailApp("Failed to update recipients", err)
 }

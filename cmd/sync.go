@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/tui"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
@@ -15,24 +16,21 @@ var syncCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		profileName, err := cmd.Flags().GetString("profile")
 		if err != nil {
-			failErr("Failed to read profile flag", err)
+			cli.FailErr("Failed to read profile flag", err)
 		}
 
-		session := newSession()
-		session.requireIdentity()
-		session.requireProject()
-		targetProfile := session.requireProfile(profileName)
+		session := cli.NewSession()
+		session.RequireIdentity()
+		session.RequireProject()
+		targetProfile := session.RequireProfile(profileName)
 
-		printHeader("sync")
+		cli.PrintHeader("sync")
 		fmt.Println(ui.Muted.Render("Profile: ") + ui.Accent.Render(targetProfile.Name))
 		fmt.Println()
 
 		// Preserve secrets from other profiles and avoid overwriting existing
 		// generated values when sync is run more than once.
-		stored, _, err := session.LoadSecretsAllowMissing()
-		if err != nil {
-			failApp("Failed to decrypt existing secrets", err)
-		}
+		stored, _ := session.LoadSecretsAllowMissing()
 
 		changed := false
 
@@ -44,7 +42,7 @@ var syncCmd = &cobra.Command{
 
 			value, err := session.GenerateSecret()
 			if err != nil {
-				fail("Failed to generate secret", fmt.Sprintf("%s: %v", key, err))
+				cli.Fail("Failed to generate secret", fmt.Sprintf("%s: %v", key, err))
 			}
 
 			stored[key] = value
@@ -57,7 +55,7 @@ var syncCmd = &cobra.Command{
 			p := tea.NewProgram(tui.NewModel(promptKeys))
 			finalModel, err := p.Run()
 			if err != nil {
-				failErr("TUI crashed", err)
+				cli.FailErr("TUI crashed", err)
 			}
 
 			m := finalModel.(tui.Model)
@@ -73,7 +71,7 @@ var syncCmd = &cobra.Command{
 		}
 
 		if changed {
-			recipientCount := session.saveSecrets(stored, false)
+			recipientCount := session.SaveSecrets(stored, false)
 
 			fmt.Println()
 			fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render(fmt.Sprintf(

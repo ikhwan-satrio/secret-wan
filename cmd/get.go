@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -18,15 +19,15 @@ var getCmd = &cobra.Command{
 		profileName, _ := cmd.Flags().GetString("profile")
 		reveal, _ := cmd.Flags().GetBool("reveal")
 
-		session := newSession()
-		session.requireProject()
-		profile := session.requireProfile(profileName)
-		session.requireExistingIdentity()
-		stored := session.requireSecrets()
+		session := cli.NewSession()
+		session.RequireProject()
+		profile := session.RequireProfile(profileName)
+		session.RequireExistingIdentity()
+		stored := session.RequireSecrets()
 
 		value, exists := stored[key]
 		if !exists {
-			fail("Secret not found", fmt.Sprintf("%s is not stored. Run 'secwan set %s' to create it.", key, key))
+			cli.Fail("Secret not found", fmt.Sprintf("%s is not stored. Run 'secwan set %s' to create it.", key, key))
 		}
 
 		if !profile.HasKey(key) {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -19,20 +20,20 @@ If no recipient file exists, the current key remains the only recipient.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		force, _ := cmd.Flags().GetBool("force")
 
-		session := newSession()
-		session.requireProject()
-		session.requireExistingIdentity()
+		session := cli.NewSession()
+		session.RequireProject()
+		session.RequireExistingIdentity()
 
 		result, err := session.Rekey(force)
 		if err != nil {
-			failApp("Failed to re-encrypt secrets", err)
+			cli.FailApp("Failed to re-encrypt secrets", err)
 		}
 
 		if result.UsedImplicit {
 			fmt.Println(ui.Muted.Render("No recipient list found; using the current key only."))
 		}
 
-		printHeader("rekey")
+		cli.PrintHeader("rekey")
 		if result.Missing {
 			fmt.Println(ui.Muted.Render("No stored secrets to re-encrypt."))
 			return
@@ -44,7 +45,7 @@ If no recipient file exists, the current key remains the only recipient.`,
 		)))
 
 		if !result.SelfListed {
-			warn("Your key is not a recipient; this key cannot decrypt the new payload.")
+			cli.Warn("Your key is not a recipient; this key cannot decrypt the new payload.")
 		}
 	},
 }

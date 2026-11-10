@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/ikhwan-satrio/secret-wan/internal/recipient"
 	"github.com/spf13/cobra"
 )
 
@@ -29,5 +30,5 @@ func Execute() {
 }
 
 func init() {
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file")
+	rootCmd.AddCommand(recipient.NewCommand())
 }

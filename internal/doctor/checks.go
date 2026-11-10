@@ -1,4 +1,4 @@
-package cmd
+package doctor
 
 import (
 	"fmt"
@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"filippo.io/age"
+	"github.com/ikhwan-satrio/secret-wan/internal/buildinfo"
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/config"
 	"github.com/ikhwan-satrio/secret-wan/internal/crypto"
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
@@ -17,22 +19,23 @@ import (
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 )
 
-func runDoctor() {
+func run() {
 	appConfig := config.UseApp()
 	cryptoModule := crypto.CryptoModule{AppConfig: appConfig}
 	parserModule := manifest.ParserModule{AppConfig: appConfig}
 
-	printHeader("doctor")
+	cli.PrintHeader("doctor")
 	fmt.Println(ui.Muted.Render("Checking your secret-wan setup..."))
 	fmt.Println()
 
 	report := &doctorReport{}
+	build := buildinfo.Current()
 
 	environment := report.section("Environment")
 	report.ok(environment, "Platform", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH))
 	report.ok(environment, "Go runtime", runtime.Version())
 	report.ok(environment, "Version", fmt.Sprintf("%s (commit %s, built %s)",
-		displayVersion(), currentBuild.Commit, currentBuild.Date))
+		buildinfo.Display(), build.Commit, build.Date))
 
 	parsed, err := parserModule.ParseManifest()
 	manifestSection := report.section("Manifest")
@@ -107,7 +110,7 @@ func runDoctor() {
 			}
 		}
 
-		identity = readDoctorIdentity(report, keySection, keyPath)
+		identity = readIdentity(report, keySection, keyPath)
 	}
 
 	recipientsSection := report.section("Recipients")
@@ -166,12 +169,12 @@ func runDoctor() {
 		}
 	}
 
-	checkDoctorProfiles(report, parsed, profileNames, stored)
+	checkProfiles(report, parsed, profileNames, stored)
 
 	report.finish()
 }
 
-func readDoctorIdentity(report *doctorReport, section *doctorSection, keyPath string) *age.X25519Identity {
+func readIdentity(report *doctorReport, section *doctorSection, keyPath string) *age.X25519Identity {
 	file, err := os.Open(keyPath)
 	if err != nil {
 		report.fail(section, "Read", err.Error())
@@ -199,7 +202,7 @@ func readDoctorIdentity(report *doctorReport, section *doctorSection, keyPath st
 	return identity
 }
 
-func checkDoctorProfiles(report *doctorReport, parsed *manifest.Manifest, profileNames []string, stored map[string]string) {
+func checkProfiles(report *doctorReport, parsed *manifest.Manifest, profileNames []string, stored map[string]string) {
 	profileSection := report.section("Profiles")
 
 	for _, name := range profileNames {

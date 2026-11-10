@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ikhwan-satrio/secret-wan/internal/cli"
 	"github.com/ikhwan-satrio/secret-wan/internal/manifest"
 	"github.com/ikhwan-satrio/secret-wan/internal/ui"
 	"github.com/spf13/cobra"
@@ -21,18 +22,18 @@ var listCmd = &cobra.Command{
 		reveal, _ := cmd.Flags().GetBool("reveal")
 		all, _ := cmd.Flags().GetBool("all")
 
-		session := newSession()
-		session.requireProject()
-		profile := session.requireProfile(profileName)
-		session.requireExistingIdentity()
-		stored := session.requireSecrets()
+		session := cli.NewSession()
+		session.RequireProject()
+		profile := session.RequireProfile(profileName)
+		session.RequireExistingIdentity()
+		stored := session.RequireSecrets()
 
 		keys := profile.Keys()
 		if all {
 			keys = profile.AllKeys(stored)
 		}
 
-		printHeader("list")
+		cli.PrintHeader("list")
 		fmt.Println(ui.Muted.Render("Profile: ") + ui.Accent.Render(profile.Name))
 		if all {
 			fmt.Println(ui.Muted.Render("Showing all stored secrets, including unmanaged keys."))

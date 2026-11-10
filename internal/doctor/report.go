@@ -1,4 +1,4 @@
-package cmd
+package doctor
 
 import (
 	"fmt"
@@ -93,28 +93,28 @@ func (r *doctorReport) render() {
 
 func (r *doctorReport) finish() {
 	r.render()
-	printDoctorSummary(r)
+	r.summary()
 
 	if r.fails > 0 {
 		os.Exit(1)
 	}
 }
 
-func printDoctorSummary(report *doctorReport) {
+func (r *doctorReport) summary() {
 	fmt.Println(ui.Divider(44))
 
 	switch {
-	case report.fails == 0 && report.warns == 0:
+	case r.fails == 0 && r.warns == 0:
 		fmt.Printf("%s %s\n", ui.IconSuccess, ui.Success.Render("Everything looks good."))
-	case report.fails == 0:
+	case r.fails == 0:
 		fmt.Printf("%s %s\n", ui.IconWarning,
-			ui.Warning.Render(fmt.Sprintf("%d warning(s), no errors.", report.warns)))
+			ui.Warning.Render(fmt.Sprintf("%d warning(s), no errors.", r.warns)))
 	default:
 		fmt.Printf("%s %s\n", ui.IconError,
-			ui.Error.Render(fmt.Sprintf("%d error(s), %d warning(s).", report.fails, report.warns)))
+			ui.Error.Render(fmt.Sprintf("%d error(s), %d warning(s).", r.fails, r.warns)))
 	}
 
-	if report.fails > 0 {
+	if r.fails > 0 {
 		fmt.Println(ui.Muted.Render("Fix the errors above, then run 'secwan doctor' again."))
 	}
 }
