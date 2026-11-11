@@ -18,6 +18,7 @@ documented at [`cmd/sync.md`](cmd/sync.md).
 | Application service | [`internal/app/`](#application-layer-internalapp) | Project loading, persistence, recipient policy, rekey, and rollback |
 | Domain logic | [`internal/`](#internal-packages) | Config, crypto, manifest, recipients, providers, prompts, TUI, UI |
 | Team sharing | [`recipients-file.md`](recipients-file.md) | Public recipient list format and workflows |
+| NixOS install | [`nixos-install.md`](nixos-install.md) | Flake usage, NixOS/Home Manager setup, keyring notes |
 | Automation | [`workflows/`](#github-workflows) | CI and release workflows |
 | Build config | [`goreleaser.md`](goreleaser.md) | GoReleaser build, archives, changelog, release settings |
 | Release config | [`release-please-config.md`](release-please-config.md) | Release Please versioning and changelog settings |

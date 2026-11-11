@@ -52,6 +52,43 @@ Download the latest binary for your OS/Architecture from the [GitHub Releases](h
 
 Windows users can download either the `.zip` archive or the standalone `secwan-windows-amd64.exe` / `secwan-windows-arm64.exe` assets.
 
+### Via Nix / NixOS
+Run it without installing:
+```bash
+nix run github:ikhwan-satrio/secret-wan -- version
+```
+
+Install it into your profile:
+```bash
+nix profile install github:ikhwan-satrio/secret-wan
+```
+
+For a declarative NixOS or Home Manager setup, add the flake as an input:
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    secret-wan.url = "github:ikhwan-satrio/secret-wan";
+  };
+
+  outputs = { self, nixpkgs, secret-wan, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = [
+            secret-wan.packages.${pkgs.system}.default
+          ];
+        })
+      ];
+    };
+  };
+}
+```
+
+See the [NixOS installation guide](docs/nixos-install.md) for Home Manager,
+overlays, keyring setup, and troubleshooting.
+
 *(Note for Linux users: If you plan to use the `keyring` provider, ensure you have `libsecret` and a Secret Service daemon like `gnome-keyring` or `keepassxc` installed).*
 
 ---

@@ -16,7 +16,7 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
-      version = "1.1.0";
+      version = "1.0.5";
       rev = "v${version}";
     in
     {
@@ -29,7 +29,7 @@
             owner = "ikhwan-satrio";
             repo = "secret-wan";
             inherit rev;
-            hash = "sha256-HqHqufTiGLER8jh91p0N0VGcqI66o2ArfiXRWmj+V3k=";
+            hash = "sha256-xlgPHoVc7iz/LmR+ilUPRsSzsA3wp18DN+kaCxEXPGA=";
           };
         in
         {
@@ -39,7 +39,7 @@
 
             # Updated automatically by the "Auto-update Flake on Release"
             # workflow (nix-update) whenever a new GitHub release is published.
-            vendorHash = "sha256-vPjN1qzy4vo6qNYDTQtjUpuFriskoULsU9GS6ptZIe0=";
+            vendorHash = "sha256-XxTlCdvXreVNpTZb7FENl6j7++gDWVcadyUMN0WMjAQ=";
 
             subPackages = [ "." ];
 
@@ -85,6 +85,13 @@
           };
         }
       );
+
+      apps = forAllSystems (system: {
+        default = {
+          type = "app";
+          program = "${self.packages.${system}.default}/bin/secwan";
+        };
+      });
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
     };
